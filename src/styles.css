@@ -1,4 +1,4 @@
-:root{ --bg:#f3f4f6; --card:#ffffff; --border:#e5e7eb; --text:#111827; --muted:#6b7280; --pill:#111; --pill-text:#fff; --accent:#111; --success:#10b981; --warn:#f59e0b; }
+﻿:root{ --bg:#f3f4f6; --card:#ffffff; --border:#e5e7eb; --text:#111827; --muted:#6b7280; --pill:#111; --pill-text:#fff; --accent:#111; --success:#10b981; --warn:#f59e0b; }
 *{ box-sizing:border-box }
 body{ margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text) }
 .container{ max-width:1120px; margin:0 auto; padding:16px }
@@ -65,12 +65,12 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 /* Avoid page breaks inside cards when printing */
 @media print {
   .card { page-break-inside: avoid }
-  /* In Amministrazione: stampa SOLO il layout attività (no riepilogo) */
+  /* In Amministrazione: stampa SOLO il layout attivitÃ  (no riepilogo) */
   .container > *:not(.print-activities) { display: none !important }
   .print-activities { display:block !important; box-shadow:none; border:none }
   /* Nascondi esplicitamente eventuale riepilogo se presente */
   .print-riepilogo { display:none !important }
-  /* Forza la visibilità del contenuto interno nel riquadro stampabile */
+  /* Forza la visibilitÃ  del contenuto interno nel riquadro stampabile */
   .print-activities .no-print { display:none !important }
   /* Turni uno sotto l'altro (A4 verticale) */
   .print-activities .card { display:block !important; width:auto; box-shadow:none; border:none; margin:6px 12px; padding:8px }
@@ -82,3 +82,18 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
   @page { size: A4 portrait; margin: 8mm }
 }
 
+
+:root[data-theme="dark"]{ --bg:#0f1115; --card:#151821; --border:#262a36; --text:#e5e7eb; --muted:#9ca3af; --pill:#e5e7eb; --pill-text:#111; --accent:#e5e7eb; --success:#10b981; --warn:#f59e0b }
+.nav{ background:#111; color:#fff }
+:root[data-theme="dark"] .nav{ background:#0b0d12 }
+
+/* Toasts */
+.toast-container{ position:fixed; top:64px; right:16px; z-index:50; display:flex; flex-direction:column; gap:8px }
+.toast{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:0 8px 20px rgba(0,0,0,0.2); min-width:240px }
+
+/* Search overlay */
+.search-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding-top:80px }
+.search-panel{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:12px; width:min(720px, 92%); max-height:70vh; overflow:auto }
+.search-panel .item{ padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer }
+.search-panel .item:hover{ background:rgba(0,0,0,0.04) }
+:root[data-theme="dark"] .search-panel .item:hover{ background:rgba(255,255,255,0.06) }
