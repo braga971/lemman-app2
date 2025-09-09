@@ -7,7 +7,5 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/lemman-app2/',
-  build: {
-    outDir: 'docs'
-  }
+  // Keep default outDir 'dist' to match the GitHub Actions workflow
 })
