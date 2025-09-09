@@ -1,0 +1,13 @@
+                    <td style={{textAlign:'right'}}>
+                      {isEdit
+                        ? (<>
+                            <button className="btn" onClick={()=>?? Salva</button>
+                            <button className="btn" onClick={()=>{ setEditingComm(null); setCommRowDraft(null) }}>Annulla</button>
+                          </>)
+                        : (<>
+                            <button className="btn" onClick={()=>??</button>
+                            <button className="btn danger" onClick={()=>???</button>
+                          </>)
+                      }
+                    </td>
+                  </tr>

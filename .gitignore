@@ -1,0 +1,12 @@
+# Dependencies and build
+node_modules/
+dist/
+
+# Env files
+.env
+.env.*
+
+# IDE/editor
+.vscode/
+.idea/
+
