@@ -7,9 +7,11 @@ import react from '@vitejs/plugin-react'
 // Auto-detect correct base for GitHub Pages
 // - User/Org page repos (e.g. <name>.github.io) use '/'
 // - Project pages use '/<repo>/'
+const explicitBase = process.env.VITE_BASE
 const repo = process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split('/')[1] : ''
 const isUserPage = repo.endsWith('.github.io')
-const base = isUserPage ? '/' : (repo ? `/${repo}/` : '/')
+const computedBase = isUserPage ? '/' : (repo ? `/${repo}/` : '/')
+const base = explicitBase ?? computedBase
 
 export default defineConfig({
   plugins: [react()],

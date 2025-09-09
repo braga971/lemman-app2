@@ -2,7 +2,7 @@
 import Navbar from './components/Navbar.jsx'
 import Login from './Login.jsx'
 import { useAuth, useProfile } from './_integration/hooks.js'
-import { supabase } from './_integration/supabaseClient.js'
+import { supabase, supabaseConfigured } from './_integration/supabaseClient.js'
 import * as Icon from './components/Icons.jsx'
 
 import Home from './views/Home.jsx'
@@ -28,6 +28,21 @@ const TABS = [
 ]
 
 export default function App(){
+  if (!supabaseConfigured) {
+    return (
+      <div style={{display:'grid',placeItems:'center',minHeight:'100vh',padding:20}}>
+        <div className="card" style={{maxWidth:520}}>
+          <h2>Configurazione necessaria</h2>
+          <p>
+            Backend Supabase non configurato. Imposta le variabili ambiente
+            <code style={{marginLeft:6}}>VITE_SUPABASE_URL</code> e
+            <code style={{marginLeft:6}}>VITE_SUPABASE_ANON_KEY</code> durante il build
+            (GitHub Actions: repository secrets) e riesegui il deploy.
+          </p>
+        </div>
+      </div>
+    )
+  }
   const user = useAuth()
   const profile = useProfile(user)
   const [active,setActive]=useState('home')
