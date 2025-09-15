@@ -1,13 +1,35 @@
-                    <td style={{textAlign:'right'}}>
-                      {isEdit
-                        ? (<>
-                            <button className="btn" onClick={()=>?? Salva</button>
-                            <button className="btn" onClick={()=>{ setEditingComm(null); setCommRowDraft(null) }}>Annulla</button>
-                          </>)
-                        : (<>
-                            <button className="btn" onClick={()=>??</button>
-                            <button className="btn danger" onClick={()=>???</button>
-                          </>)
-                      }
-                    </td>
-                  </tr>
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../_integration/supabaseClient.js'
+import * as Icon from '../components/Icons.jsx'
+
+function startOfWeekMonday(d){ const dt=new Date(d); const day=dt.getDay()||7; const monday=new Date(dt); monday.setDate(dt.getDate()-(day-1)); monday.setHours(0,0,0,0); return monday }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x }
+function fmt(d){ return new Date(d).toISOString().slice(0,10) }
+
+const SLOTS=[
+  { key:'T1', label:'1° TURNO' },
+  { key:'T2', label:'2° TURNO' },
+  { key:'T1_0600_1400', label:'1° TURNO (06:00 - 14:00)' },
+  { key:'T2_1400_2200', label:'2° TURNO (14:00 - 22:00)' },
+  { key:'T3_2200_0600', label:'3° TURNO (22:00 - 06:00)' },
+  { key:'GIORNALIERO', label:'GIORNALIERO' },
+]
+
+export default function TurniSettimanali({ isManager=false }){
+  const [offset,setOffset]=useState(0)
+  const [cantieri,setCantieri]=useState([])
+  const [activeCantiere,setActiveCantiere]=useState('')
+  const [values,setValues]=useState({}) // {slot:{users:[]}}
+  const [profiles,setProfiles]=useState([])
+  const [haveCantieriTable,setHaveCantieriTable]=useState(false)
+  const [loading,setLoading]=useState(false)
+  const [assignedElsewhere,setAssignedElsewhere]=useState(new Set())
+
+  const { from, to } = useMemo(()=>{ const base=startOfWeekMonday(new Date()); const start=addDays(base, offset*7); const end=addDays(start,6); return { from:fmt(start), to:fmt(end) } }, [offset])
+
+  useEffect(()=>{ (async()=>{
+    try{
+      const ppl=await supabase.from('profiles').select('id,full_name,email').order('full_name',{ascending:true}); if(!ppl.error) setProfiles(ppl.data||[])
+      const res=await supabase.from('cantieri').select('id,name').order('name')
+      if(!res.error && (res.data||[]).length){ setCantieri(res.data||[]); setHaveCantieriTable(true); if(!activeCantiere) setActiveCantiere(String(res.data[0].id)) }
+      else { const alt=await supabase.from('commesse').select('cantie

@@ -19,7 +19,7 @@ export default function ReportsView({ data, profiles }){
     setRows(d||[])
   }
 
-  useEffect(()=>{ search() }, [])
+  // Non caricare tutto all'avvio; attendi azione "Cerca"
 
   const agg = useMemo(()=>{
     // aggregate hours by user for selection

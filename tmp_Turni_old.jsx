@@ -2,21 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 
-// Helpers settimana (locale)
 function startOfWeekMonday(d){ const dt=new Date(d); const day=dt.getDay()||7; const monday=new Date(dt); monday.setDate(dt.getDate()-(day-1)); monday.setHours(0,0,0,0); return monday }
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x }
-function fmtLocalYMD(d){ const x=new Date(d); const y=x.getFullYear(); const m=String(x.getMonth()+1).padStart(2,'0'); const da=String(x.getDate()).padStart(2,'0'); return `${y}-${m}-${da}` }
-function fmtUTCYMD(d){ return new Date(d).toISOString().slice(0,10) }
-function fmtLocalDMY(d){ const x=new Date(d); const da=String(x.getDate()).padStart(2,'0'); const m=String(x.getMonth()+1).padStart(2,'0'); const y=x.getFullYear(); return `${da}/${m}/${y}` }
-function weekdayITUpper(d){ return new Date(d).toLocaleDateString('it-IT', { weekday:'long' }).toUpperCase() }
-function weekInputToMonday(weekStr){ if(!weekStr) return startOfWeekMonday(new Date()); const [yy, wwRaw='W1'] = String(weekStr).split('-W'); const year=Number(yy); const week=Number(wwRaw.replace('W',''))||1; const jan4=new Date(year,0,4); const base=startOfWeekMonday(jan4); return addDays(base,(week-1)*7) }
+function fmt(d){ return new Date(d).toISOString().slice(0,10) }
 
 const SLOTS=[
-  { key:'T1', label:'1Â° TURNO' },
-  { key:'T2', label:'2Â° TURNO' },
-  { key:'T1_0600_1400', label:'1Â° TURNO (06:00 - 14:00)' },
-  { key:'T2_1400_2200', label:'2Â° TURNO (14:00 - 22:00)' },
-  { key:'T3_2200_0600', label:'3Â° TURNO (22:00 - 06:00)' },
+  { key:'T1', label:'1° TURNO' },
+  { key:'T2', label:'2° TURNO' },
+  { key:'T1_0600_1400', label:'1° TURNO (06:00 - 14:00)' },
+  { key:'T2_1400_2200', label:'2° TURNO (14:00 - 22:00)' },
+  { key:'T3_2200_0600', label:'3° TURNO (22:00 - 06:00)' },
   { key:'GIORNALIERO', label:'GIORNALIERO' },
 ]
 
@@ -29,9 +24,8 @@ export default function TurniSettimanali({ isManager=false }){
   const [haveCantieriTable,setHaveCantieriTable]=useState(false)
   const [loading,setLoading]=useState(false)
   const [assignedElsewhere,setAssignedElsewhere]=useState(new Set())
-  const [weekValue,setWeekValue]=useState(()=>{ const now=new Date(); const monday=startOfWeekMonday(now); const jan4=new Date(now.getFullYear(),0,4); const firstMonday=startOfWeekMonday(jan4); const diffDays=Math.round((monday-firstMonday)/(1000*60*60*24)); const isoWeek=1+Math.floor(diffDays/7); return `${monday.getFullYear()}-W${String(isoWeek).padStart(2,'0')}` })
 
-  const { from, to } = useMemo(()=>{ const base=startOfWeekMonday(new Date()); const start = offset===0 && weekValue ? weekInputToMonday(weekValue) : addDays(base, offset*7); const end=addDays(start,6); return { from:fmtLocalYMD(start), to:fmtLocalYMD(end) } }, [offset, weekValue])
+  const { from, to } = useMemo(()=>{ const base=startOfWeekMonday(new Date()); const start=addDays(base, offset*7); const end=addDays(start,6); return { from:fmt(start), to:fmt(end) } }, [offset])
 
   useEffect(()=>{ (async()=>{
     try{
@@ -46,14 +40,12 @@ export default function TurniSettimanali({ isManager=false }){
     if(!activeCantiere) return; setLoading(true)
     try{
       const name=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name
-      let { data } = await supabase.from('shift_schedules').select('payload').eq('site',name).eq('week_start',from).maybeSingle()
-      // fallback legacy chiave salvata in UTC (vecchio bug)
-      if (!data){ const legacy = fmtUTCYMD(weekInputToMonday(weekValue)); const alt = await supabase.from('shift_schedules').select('payload').eq('site',name).eq('week_start', legacy).maybeSingle(); if(!alt.error && alt.data) data = alt.data }
+      const { data } = await supabase.from('shift_schedules').select('payload').eq('site',name).eq('week_start',from).maybeSingle()
       const raw=(data?.payload)||{}
       const norm={}
       for(const s of SLOTS){ const v=raw[s.key]; if(v && typeof v==='object' && Array.isArray(v.users)) norm[s.key]={users:v.users.filter(Boolean)}; else norm[s.key]={users:[]} }
       setValues(norm)
-      // Assegnazioni altrove nella stessa settimana
+      // fetch assignments in other sites for this week to hide them from unassigned
       const { data:others } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from).neq('site', name)
       const set=new Set()
       for(const row of (others||[])){
@@ -64,19 +56,20 @@ export default function TurniSettimanali({ isManager=false }){
     } finally{ setLoading(false) }
   }
   useEffect(()=>{ loadValues() }, [activeCantiere, from])
+  // Pulisci immediatamente le caselle quando cambio cantiere/settimana
   useEffect(()=>{ setValues({}); setAssignedElsewhere(new Set()) }, [activeCantiere, from])
 
   function addUserToSlot(slot,uid){ setValues(v=>{ const next={...v}; for(const s of SLOTS){ const k=s.key; const arr=(next[k]?.users)||[]; next[k]={users:arr.filter(x=>x!==uid)} } next[slot]={users:[...((next[slot]?.users)||[]), uid]}; return next }) }
   function removeUser(uid){ setValues(v=>{ const next={...v}; for(const s of SLOTS){ const k=s.key; next[k]={users:((next[k]?.users)||[]).filter(x=>x!==uid)} } return next }) }
   function onDragStartUser(e,uid){ e.dataTransfer.setData('text/plain', uid) }
-  function onDropSlot(e,slot){ const uid=e.dataTransfer.getData('text/plain'); if(!uid) return; if(assignedElsewhere.has(uid)){ alert('Questo utente Ã¨ giÃ  assegnato in un altro cantiere per questa settimana.'); return } addUserToSlot(slot, uid) }
+  function onDropSlot(e,slot){ const uid=e.dataTransfer.getData('text/plain'); if(uid) addUserToSlot(slot, uid) }
   function onDragOver(e){ e.preventDefault() }
 
   async function save(){
     if(!activeCantiere) return; const name=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name
     if(!name){ alert('Seleziona un cantiere valido'); return }
     const payload={}; for(const s of SLOTS){ payload[s.key]={users:(values[s.key]?.users)||[]} }
-    // unicitÃ  utente-settimana tra cantieri
+    // uniqueness across sites for same week
     const { data:others } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from).neq('site', name)
     const here=new Set(Object.values(payload).flatMap(v=>v.users||[])); const conflicts=[]
     for(const row of (others||[])){ const users=Object.values(row?.payload||{}).flatMap(v=> (v?.users||[])); for(const uid of users){ if(here.has(uid)) conflicts.push(uid) } }
@@ -93,22 +86,15 @@ export default function TurniSettimanali({ isManager=false }){
 
   return (
     <div className="page">
-      <style>
-        {`@media print { @page { size: A4 landscape; margin: 8mm } .print-area { font-size: 12px } .print-area .badge { font-size: 12px } .print-area .card { break-inside: avoid; box-shadow:none; border:none } }`}
-      </style>
-      <h2><Icon.Calendar style={{marginRight:6}}/> Turni settimanali {cantiereName ? (<span className="muted" style={{marginLeft:8, fontWeight:600}}>- {cantiereName}</span>) : null}</h2>
+      <h2><Icon.Calendar style={{marginRight:6}}/> Turni settimanali {cantiereName ? (<span className="muted" style={{marginLeft:8, fontWeight:600}}>— {cantiereName}</span>) : null}</h2>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
         <span>Settimana:</span>
-        <button className={"btn" + (offset===0?' primary':'')} onClick={()=>{ setOffset(0) }}>Questa</button>
-        <button className={"btn" + (offset===1?' primary':'')} onClick={()=>{ setWeekValue(''); setOffset(1) }}>Prossima</button>
-        <label style={{marginLeft:12}}>Vai a:</label>
-        <input type="week" value={weekValue} onChange={e=>{ setWeekValue(e.target.value); setOffset(0) }} />
+        <button className={"btn" + (offset===0?' primary':'')} onClick={()=>setOffset(0)}>Questa</button>
+        <button className={"btn" + (offset===1?' primary':'')} onClick={()=>setOffset(1)}>Prossima</button>
         <span style={{marginLeft:16}}>Cantiere:</span>
-        <div style={{display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
-          {cantieri.map(c=> (
-            <button key={c.id} className={'btn' + (String(activeCantiere)===String(c.id)?' primary':'')} onClick={()=>setActiveCantiere(String(c.id))}>{c.name}</button>
-          ))}
-        </div>
+        <select className="select" value={String(activeCantiere)} onChange={e=>setActiveCantiere(e.target.value)}>
+          {cantieri.map(c=> (<option key={c.id} value={String(c.id)}>{c.name}</option>))}
+        </select>
         {isManager && (
           <>
             <button className="btn secondary" style={{marginLeft:12}} onClick={async()=>{ const name=prompt('Nome nuovo cantiere:'); if(!name) return; const { data, error } = await supabase.from('cantieri').insert({ name }).select('id,name').single(); if(error){ alert(error.message); return } setCantieri(c=>[...c,data]); setActiveCantiere(String(data.id)) }}>Nuovo cantiere</button>
@@ -130,7 +116,7 @@ export default function TurniSettimanali({ isManager=false }){
 
       <div className="card section print-area" style={{marginTop:12}}>
         {cantiereName && (<div style={{textAlign:'center', fontWeight:800, marginBottom:8}}>{String(cantiereName).toUpperCase()}</div>)}
-        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center'}}>TURNI SETTIMANA DAL {fmtLocalDMY(from)} {weekdayITUpper(from)} AL {fmtLocalDMY(to)} {weekdayITUpper(to)}</div>
+        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center'}}>TURNI SETTIMANA DAL {from} LUNEDI AL {to} DOMENICA</div>
 
         <div className="grid" style={{gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
           {SLOTS.slice(0,2).map(s => (
@@ -140,7 +126,7 @@ export default function TurniSettimanali({ isManager=false }){
                 {(values[s.key]?.users||[]).map(uid=>{ const p=profiles.find(x=>x.id===uid); return (
                   <span key={uid} className="badge" draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={displayName(p)||uid}>
                     {displayName(p)||uid}
-                    {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>Ã—</button>)}
+                    {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>×</button>)}
                   </span>
                 )})}
               </div>
@@ -156,7 +142,7 @@ export default function TurniSettimanali({ isManager=false }){
                 {(values[s.key]?.users||[]).map(uid=>{ const p=profiles.find(x=>x.id===uid); return (
                   <span key={uid} className="badge" draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={displayName(p)||uid}>
                     {displayName(p)||uid}
-                    {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>Ã—</button>)}
+                    {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>×</button>)}
                   </span>
                 )})}
               </div>
@@ -170,7 +156,7 @@ export default function TurniSettimanali({ isManager=false }){
             {(values['GIORNALIERO']?.users||[]).map(uid=>{ const p=profiles.find(x=>x.id===uid); return (
               <span key={uid} className="badge" draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={displayName(p)||uid}>
                 {displayName(p)||uid}
-                {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>Ã—</button>)}
+                {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>×</button>)}
               </span>
             )})}
           </div>
@@ -189,3 +175,4 @@ export default function TurniSettimanali({ isManager=false }){
     </div>
   )
 }
+

@@ -25,9 +25,11 @@ export default function Report(){
     })()
   }, [])
 
-  // Query rapportini by filters (date range; optional commessa/posizione)
+  // Query rapportini solo quando c'è almeno un filtro
   useEffect(()=>{
     (async ()=>{
+      const hasFilters = Boolean(fromDate || toDate || commessaId || posizione)
+      if (!hasFilters){ setRows([]); return }
       let q = supabase
         .from('rapportini')
         .select('id,user_id,data,ore,descrizione,commessa_id,posizione_id,cantiere')
