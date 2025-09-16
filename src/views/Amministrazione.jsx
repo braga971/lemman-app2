@@ -1,7 +1,9 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 
+function startOfWeekMonday(d){ const dt=new Date(d); const day=dt.getDay()||7; const monday=new Date(dt); monday.setDate(dt.getDate()-(day-1)); monday.setHours(0,0,0,0); return monday }
+function fmtLocalYMD(d){ const x=new Date(d); const y=x.getFullYear(); const m=String(x.getMonth()+1).padStart(2,'0'); const da=String(x.getDate()).padStart(2,'0'); return `${y}-${m}-${da}` }
 function parseStoragePublicUrl(url){
   try{
     const i = url.indexOf('/storage/v1/object/public/')
@@ -15,18 +17,27 @@ function parseStoragePublicUrl(url){
   }catch(e){ return null }
 }
 
-function AssegnaAttivitaPerCantiere({ profiles, onDone }){
+export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const [data, setData] = useState(new Date().toISOString().slice(0,10))
   const [cantieri, setCantieri] = useState([])
   const [cantiere, setCantiere] = useState('')
   const [fallbackCantieri, setFallbackCantieri] = useState(false)
-  const SHIFTS = ['1° TURNO','2° TURNO','3° TURNO']
+  const SHIFTS = ['1� TURNO','2� TURNO','3� TURNO']
+  const SCHEDULE_KEYS = { '1� TURNO': ['T1','T1_0600_1400'], '2� TURNO': ['T2','T2_1400_2200'], '3� TURNO': ['T3_2200_0600'] }
   const [rowsByShift, setRowsByShift] = useState(()=> ({
-    '1° TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
-    '2° TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
-    '3° TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
+    '1� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
+    '2� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
+    '3� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
   }))
   const [saving, setSaving] = useState(false)
+  function displayShift(s){
+    try{
+      return String(s)
+        .replace(/^1.*TURNO$/,'1\u00B0 TURNO')
+        .replace(/^2.*TURNO$/,'2\u00B0 TURNO')
+        .replace(/^3.*TURNO$/,'3\u00B0 TURNO')
+    }catch(_){ return s }
+  }
 
   useEffect(()=>{ (async ()=>{
     try{
@@ -55,7 +66,7 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
     setRowsByShift(v=> ({ ...v, [shift]: v[shift].filter((_,idx)=> idx!==i) }))
   }
 
-  // Carica le attività già salvate per data+cantiere selezionato
+  // Carica le Attivita gi� salvate per data+cantiere selezionato
   useEffect(()=>{ (async()=>{
     try{
       const cName = (cantieri.find(c=> String(c.id)===String(cantiere))||{}).name || null
@@ -66,14 +77,29 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
         .eq('data', data)
         .eq('cantiere', cName)
         .order('created_at', { ascending:true })
-      const base = { '1° TURNO': [], '2° TURNO': [], '3° TURNO': [] }
+      const base = { '1� TURNO': [], '2� TURNO': [], '3� TURNO': [] }
       for (const t of (tasks||[])){
         const parts = String(t.title||'').split(' - ')
         const maybeShift = parts[0]
         const rest = parts.slice(1).join(' - ')
-        const shift = SHIFTS.includes(maybeShift) ? maybeShift : '1° TURNO'
+        const shift = SHIFTS.includes(maybeShift) ? maybeShift : '1� TURNO'
         base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
       }
+      // Prefill dai turni settimanali
+      try{
+        const monday = fmtLocalYMD(startOfWeekMonday(new Date(data)))
+        const { data: sched } = await supabase.from('shift_schedules').select('payload').eq('site', cName).eq('week_start', monday).maybeSingle()
+        const payload = sched?.payload || {}
+        for (const label of SHIFTS){
+          const keys = SCHEDULE_KEYS[label] || []
+          const assigned = Array.from(new Set(keys.flatMap(k => (payload?.[k]?.users||[]).filter(Boolean))))
+          if (!assigned.length) continue
+          const already = new Set(base[label].map(r=>r.user_id).filter(Boolean))
+          const missing = assigned.filter(uid=> !already.has(uid))
+          for (const row of base[label]){ if (!row.user_id && missing.length){ row.user_id = missing.shift() } }
+          while (missing.length){ base[label].push({ user_id: missing.shift(), title:'', file:null, task_id:null }) }
+        }
+      }catch(_){ /* ignore schedule prefill errors */ }
       const padded = {}
       for (const s of SHIFTS){
         const list = base[s]
@@ -144,7 +170,7 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
         }
       }
       setRowsByShift(next)
-      onDone && onDone(); alert('Attività salvate')
+      onDone && onDone(); alert('Attivita salvate')
     }catch(e){ alert(e.message||String(e)) } finally{ setSaving(false) }
   }
 
@@ -152,7 +178,7 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
 
   return (
     <div>
-      <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Assegna Attività</h3>
+      <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Assegna Attivita</h3>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
         <label>Data:</label>
         <input type="date" value={data} onChange={e=>setData(e.target.value)} />
@@ -170,10 +196,10 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
       )}
       <div className="card print-activities" style={{marginTop:8}}>
         {cantiereName && (<div style={{textAlign:'center', fontWeight:800}}>{String(cantiereName).toUpperCase()}</div>)}
-        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attività del {data}</div>
+        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attivita del {data}</div>
         {SHIFTS.map(shift => (
           <div key={shift} className="card" style={{marginTop:10}}>
-            <div style={{fontWeight:700, textAlign:'center', marginBottom:6}}>{shift}</div>
+            <div style={{fontWeight:700, textAlign:'center', marginBottom:6}}>{displayShift(shift)}</div>
             <table className="table">
               <thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attivita</th><th style={{width:120}} className="no-print m-hide">Foto</th><th className="no-print"></th></tr></thead>
               <tbody>
@@ -186,7 +212,7 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
                       </select>
                     </td>
                     <td>
-                      <textarea className="input" rows={2} value={r.title} onChange={e=>setRow(shift,i,{ title:e.target.value })} placeholder="Descrizione attivita"></textarea>
+                      <textarea className="input" rows={2} value={r.title} onChange={e=>setRow(shift,i,{ title:e.target.value })} placeholder="Descrizione Attivita"></textarea>
                     </td>
                     <td className="no-print m-hide"><input type="file" accept="image/*" onChange={e=>setRow(shift,i,{ file:e.target.files?.[0]||null })} /></td>
                     <td className="no-print">
@@ -210,7 +236,7 @@ function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   )
 }
 
-function RiepilogoAttivita({ db, date }){
+export function RiepilogoAttivita({ db, date }){
   const rows = useMemo(()=> (db.tasks||[]).filter(t=>t.data===date), [db.tasks, date])
   const byCant = useMemo(()=>{
     const m = {}
@@ -223,8 +249,8 @@ function RiepilogoAttivita({ db, date }){
   }
   return (
     <div>
-      <h3><Icon.BarChart style={{marginRight:6}}/> Riepilogo attività per cantiere</h3>
-      {byCant.length===0 && (<div className="muted" style={{marginTop:8}}>Nessuna attivita per la data selezionata</div>)}
+      <h3><Icon.BarChart style={{marginRight:6}}/> Riepilogo Attivita per cantiere</h3>
+      {byCant.length===0 && (<div className="muted" style={{marginTop:8}}>Nessuna Attivita per la data selezionata</div>)}
       {byCant.map(([cant,list])=> (
         <div key={cant} className="card" style={{marginTop:12}}>
           <div style={{fontWeight:700, textAlign:'center'}}>{cant}</div>
@@ -324,16 +350,10 @@ export default function Amministrazione({ db, profiles, refresh }){
           <h3><Icon.FileText style={{marginRight:6}}/> Commesse & Cantieri</h3>
           <div className="grid2">
             <input placeholder="Codice commessa" value={comm.code} onChange={e=>setComm({...comm, code:e.target.value})} />
-            <input placeholder="Cantiere / Cliente" value={comm.cantiere} onChange={e=>setComm({...comm, cantiere:e.target.value})} />
-          </div>
-          <div className="row" style={{marginTop:8}}>
             <select className="select" value={comm.cantiere} onChange={e=>setComm({...comm, cantiere:e.target.value})}>
-              <option value="">— Seleziona cantiere esistente —</option>
-              {(db.cantieri||[]).map(c=> (
-                <option key={c.id} value={c.name}>{c.name}</option>
-              ))}
+              <option value="">- Seleziona cantiere esistente -</option>
+              {(db.cantieri||[]).map(c=> (<option key={c.id} value={c.name}>{c.name}</option>))}
             </select>
-            <span className="muted hint">oppure scrivi un nuovo nome nel campo sopra</span>
           </div>
           <textarea placeholder="Descrizione" value={comm.descrizione} onChange={e=>setComm({...comm, descrizione:e.target.value})} />
           <label style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
@@ -342,10 +362,11 @@ export default function Amministrazione({ db, profiles, refresh }){
           </label>
           <div style={{marginTop:8}}>
             <button className="btn" onClick={async()=>{
+              if(!comm.cantiere) return alert('Seleziona un cantiere esistente')
               const { error } = await supabase.from('commesse').insert({ code:comm.code?.trim()||null, cantiere:comm.cantiere?.trim()||null, descrizione:comm.descrizione?.trim()||null, cantiere_binded: !!comm.cantiere_binded })
               if (error) return alert(error.message)
               setComm({ code:'', cantiere:'', descrizione:'', cantiere_binded:true }); refresh && refresh()
-            }}>Crea commessa</button>
+            }}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><Icon.Plus/> Crea commessa</span></button>
           </div>
 
           <table className="table" style={{marginTop:12}}>
@@ -362,13 +383,13 @@ export default function Amministrazione({ db, profiles, refresh }){
                     <td style={{textAlign:'right'}}>
                       {isEdit ? (
                         <>
-                          <button className="btn" onClick={async()=>{ const row={...commDraft}; const { error } = await supabase.from('commesse').update({ code:row.code, cantiere:row.cantiere, descrizione:row.descrizione, cantiere_binded: !!row.cantiere_binded }).eq('id', c.id); if(error) return alert(error.message); setEditingComm(null); setCommDraft(null); refresh&&refresh() }}>Salva</button>
+                          <button className="btn" onClick={async()=>{ const row={...commDraft}; const { error } = await supabase.from('commesse').update({ code:row.code, cantiere:row.cantiere, descrizione:row.descrizione, cantiere_binded: !!row.cantiere_binded }).eq('id', c.id); if(error) return alert(error.message); setEditingComm(null); setCommDraft(null); refresh&&refresh() }}><Icon.Save style={{marginRight:6}}/> Salva</button>
                           <button className="btn" onClick={()=>{ setEditingComm(null); setCommDraft(null) }}>Annulla</button>
                         </>
                       ): (
                         <>
-                          <button className="btn" onClick={()=>{ setEditingComm(c.id); setCommDraft({...c}) }}>Modifica</button>
-                          <button className="btn danger" onClick={async()=>{ if(!confirm('Eliminare commessa e relative posizioni?')) return; const { error } = await supabase.from('commesse').delete().eq('id', c.id); if(error) return alert(error.message); refresh&&refresh() }}>Elimina</button>
+                          <button className="btn" onClick={()=>{ setEditingComm(c.id); setCommDraft({...c}) }}><Icon.Edit style={{marginRight:6}}/> Modifica</button>
+                          <button className="btn danger" onClick={async()=>{ if(!confirm('Eliminare commessa e relative posizioni?')) return; const { error } = await supabase.from('commesse').delete().eq('id', c.id); if(error) return alert(error.message); refresh&&refresh() }}><Icon.Trash style={{marginRight:6}}/> Elimina</button>
                         </>
                       )}
                     </td>
@@ -387,7 +408,7 @@ export default function Amministrazione({ db, profiles, refresh }){
           </select>
           <div className="grid2" style={{marginTop:8}}>
             <input placeholder="Nuova posizione" value={posForm.name} onChange={e=>setPosForm({...posForm, name:e.target.value})} />
-            <button className="btn" onClick={async()=>{ if(!posForm.commessa_id || !posForm.name?.trim()) return alert('Seleziona commessa e nome'); const { error } = await supabase.from('posizioni').insert({ commessa_id: posForm.commessa_id, name: posForm.name.trim() }); if(error) return alert(error.message); setPosForm({ commessa_id: posForm.commessa_id, name:'' }); refresh&&refresh() }}>Aggiungi</button>
+            <button className="btn" onClick={async()=>{ if(!posForm.commessa_id || !posForm.name?.trim()) return alert('Seleziona commessa e nome'); const { error } = await supabase.from('posizioni').insert({ commessa_id: posForm.commessa_id, name: posForm.name.trim() }); if(error) return alert(error.message); setPosForm({ commessa_id: posForm.commessa_id, name:'' }); refresh&&refresh() }}><Icon.Plus style={{marginRight:6}}/> Aggiungi</button>
           </div>
           <table className="table" style={{marginTop:12}}>
             <thead><tr><th>Posizione</th><th></th></tr></thead>
@@ -400,13 +421,13 @@ export default function Amministrazione({ db, profiles, refresh }){
                     <td style={{textAlign:'right'}}>
                       {isEdit ? (
                         <>
-                          <button className="btn" onClick={async()=>{ const { error } = await supabase.from('posizioni').update({ name: posDraft.name }).eq('id', p.id); if(error) return alert(error.message); setEditingPos(null); setPosDraft(null); refresh&&refresh() }}>Salva</button>
+                          <button className="btn" onClick={async()=>{ const { error } = await supabase.from('posizioni').update({ name: posDraft.name }).eq('id', p.id); if(error) return alert(error.message); setEditingPos(null); setPosDraft(null); refresh&&refresh() }}><Icon.Save style={{marginRight:6}}/> Salva</button>
                           <button className="btn" onClick={()=>{ setEditingPos(null); setPosDraft(null) }}>Annulla</button>
                         </>
                       ) : (
                         <>
-                          <button className="btn" onClick={()=>{ setEditingPos(p.id); setPosDraft({...p}) }}>Modifica</button>
-                          <button className="btn danger" onClick={async()=>{ if(!confirm('Eliminare posizione?')) return; const { error } = await supabase.from('posizioni').delete().eq('id', p.id); if(error) return alert(error.message); refresh&&refresh() }}>Elimina</button>
+                          <button className="btn" onClick={()=>{ setEditingPos(p.id); setPosDraft({...p}) }}><Icon.Edit style={{marginRight:6}}/> Modifica</button>
+                          <button className="btn danger" onClick={async()=>{ if(!confirm('Eliminare posizione?')) return; const { error } = await supabase.from('posizioni').delete().eq('id', p.id); if(error) return alert(error.message); refresh&&refresh() }}><Icon.Trash style={{marginRight:6}}/> Elimina</button>
                         </>
                       )}
                     </td>
@@ -417,70 +438,17 @@ export default function Amministrazione({ db, profiles, refresh }){
           </table>
         </section>
       </div>
-        <section className="card section print-activities">
-          <AssegnaAttivitaPerCantiere profiles={profiles} onDone={refresh} />
-        </section>
-
-        <section className="card section print-riepilogo">
-          <label>Data:</label> <input type="date" value={dateRep} onChange={e=>setDateRep(e.target.value)} />
-          <RiepilogoAttivita db={db} date={dateRep} />
-        </section>
+        {/* Sezioni spostate in Attivita (manager) */}
       
 
-      <div className="card section" style={{marginTop:16}}>
-        <h3><Icon.FileText style={{marginRight:6}}/> Ultimi Rapportini</h3>
-        <table className="table">
-          <thead><tr><th>Data</th><th>Dipendente</th><th>Commessa</th><th>Posizione</th><th>Foto</th><th>Ore</th><th>Descrizione</th><th>Stato</th><th>Azioni</th></tr></thead>
-          <tbody>
-            {((db.rapportini||[])
-              .filter(r=> r.stato!=='approvato' && r.stato!=='approved' && !hiddenApproved.has(r.id))
-              .slice(0,50))
-              .map(r=> {
-              const isEdit = editingRapId===r.id
-              const posOptions = (db.posizioni||[]).filter(p=> String(p.commessa_id)===String(isEdit? rapDraft?.commessa_id : r.commessa_id))
-              return (
-                <tr key={r.id}>
-                  <td>{isEdit ? (<input type="date" className="input" value={rapDraft?.data||''} onChange={e=>setRapDraft(v=>({...v, data:e.target.value}))} />) : r.data}</td>
-                  <td>{(profiles||[]).find(p=>p.id===r.user_id)?.full_name||'-'}</td>
-                  <td>{isEdit ? (
-                    <select className="input" value={rapDraft?.commessa_id||''} onChange={e=>setRapDraft(v=>({...v, commessa_id:e.target.value, posizione_id:''}))}>
-                      <option value="">-</option>
-                      {(db.commesse||[]).map(c=>(<option key={c.id} value={String(c.id)}>{c.code||c.descrizione||c.id}</option>))}
-                    </select>
-                  ) : ((db.commesse||[]).find(c=>c.id===r.commessa_id)?.code||'-')}</td>
-                  <td>{isEdit ? (
-                    <select className="input" value={rapDraft?.posizione_id||''} onChange={e=>setRapDraft(v=>({...v, posizione_id:e.target.value}))} disabled={!rapDraft?.commessa_id}>
-                      <option value="">-</option>
-                      {posOptions.map(p=>(<option key={p.id} value={String(p.id)}>{p.name}</option>))}
-                    </select>
-                  ) : ((db.posizioni||[]).find(p=>p.id===r.posizione_id)?.name||'-')}</td>
-                  <td>{r.photo_url ? <a href={r.photo_url} target="_blank" rel="noreferrer">apri</a> : '-'}</td>
-                  <td>{isEdit ? (<input type="number" step="0.5" className="input" value={rapDraft?.ore||''} onChange={e=>setRapDraft(v=>({...v, ore:e.target.value}))} />) : (r.ore ?? '-')}</td>
-                  <td>{isEdit ? (<input className="input" value={rapDraft?.descrizione||''} onChange={e=>setRapDraft(v=>({...v, descrizione:e.target.value}))} />) : (r.descrizione||'-')}</td>
-                  <td><span className="badge">{r.stato||'-'}</span></td>
-                  <td>
-                    {isEdit ? (
-                      <>
-                        <button className="btn" onClick={()=>saveEditRap(r)}>Salva</button>
-                        <button className="btn secondary" style={{marginLeft:6}} onClick={cancelEditRap}>Annulla</button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="btn" onClick={()=>setStato(r, 'approvato')}>Approva</button>
-                        <button className="btn secondary" style={{marginLeft:6}} onClick={()=>setStato(r, 'rifiutato')}>Rifiuta</button>
-                        <button className="btn" style={{marginLeft:6}} onClick={()=>startEditRap(r)}>Modifica</button>
-                        <button className="btn danger" style={{marginLeft:6}} onClick={()=>deleteRap(r)}>Elimina</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* Sezione Ultimi Rapportini spostata in Rapportini (manager) */}
     </div>
   )
 }
+
+
+
+
+
 
 

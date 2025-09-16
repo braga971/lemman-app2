@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 import imageCompression from 'browser-image-compression'
@@ -113,6 +113,85 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
           </tbody>
         </table>
       </section>
+      {isManager && (
+        <section className="card section" style={{marginTop:16}}>
+          <h3><Icon.FileText style={{marginRight:6}}/> Ultimi Rapportini</h3>
+          <ManagerRapportiniTable db={db} profiles={db.profiles||[]} refresh={refresh} />
+        </section>
+      )}
     </div>
+  )
+}
+
+function ManagerRapportiniTable({ db, profiles, refresh }){
+  const [hiddenApproved, setHiddenApproved] = useState(()=> new Set())
+  const [editingRapId, setEditingRapId] = useState(null)
+  const [rapDraft, setRapDraft] = useState(null)
+
+  async function setStato(r, stato){
+    const { error } = await supabase.from('rapportini').update({ stato }).eq('id', r.id)
+    if (error){ alert(error.message); return }
+  }
+  async function deleteRap(r){
+    if(!confirm('Eliminare rapportino?')) return
+    try{
+      await supabase.from('rapportini').delete().eq('id', r.id)
+    }catch(e){ alert(e.message||String(e)) }
+    refresh && refresh()
+  }
+  function startEditRap(r){ setEditingRapId(r.id); setRapDraft({...r}) }
+  function cancelEditRap(){ setEditingRapId(null); setRapDraft(null) }
+  async function saveEditRap(r){ const row={...rapDraft}; const { error } = await supabase.from('rapportini').update({ data:row.data, ore:row.ore, descrizione:row.descrizione, commessa_id:row.commessa_id||null, posizione_id:row.posizione_id||null }).eq('id', r.id); if(error) return alert(error.message); cancelEditRap(); refresh&&refresh() }
+
+  return (
+    <table className="table">
+      <thead><tr><th>Data</th><th>Dipendente</th><th>Commessa</th><th>Posizione</th><th>Foto</th><th>Ore</th><th>Descrizione</th><th>Stato</th><th>Azioni</th></tr></thead>
+      <tbody>
+        {((db.rapportini||[])
+          .filter(r=> r.stato!=='approvato' && r.stato!=='approved' && !hiddenApproved.has(r.id))
+          .slice(0,50))
+          .map(r=> {
+          const isEdit = editingRapId===r.id
+          const posOptions = (db.posizioni||[]).filter(p=> String(p.commessa_id)===String(isEdit? rapDraft?.commessa_id : r.commessa_id))
+          return (
+            <tr key={r.id}>
+              <td>{isEdit ? (<input type="date" className="input" value={rapDraft?.data||''} onChange={e=>setRapDraft(v=>({...v, data:e.target.value}))} />) : r.data}</td>
+              <td>{(profiles||[]).find(p=>p.id===r.user_id)?.full_name||'-'}</td>
+              <td>{isEdit ? (
+                <select className="input" value={rapDraft?.commessa_id||''} onChange={e=>setRapDraft(v=>({...v, commessa_id:e.target.value, posizione_id:''}))}>
+                  <option value="">-</option>
+                  {(db.commesse||[]).map(c=>(<option key={c.id} value={String(c.id)}>{c.code||c.descrizione||c.id}</option>))}
+                </select>
+              ) : ((db.commesse||[]).find(c=>c.id===r.commessa_id)?.code||'-')}</td>
+              <td>{isEdit ? (
+                <select className="input" value={rapDraft?.posizione_id||''} onChange={e=>setRapDraft(v=>({...v, posizione_id:e.target.value}))} disabled={!rapDraft?.commessa_id}>
+                  <option value="">-</option>
+                  {posOptions.map(p=>(<option key={p.id} value={String(p.id)}>{p.name}</option>))}
+                </select>
+              ) : ((db.posizioni||[]).find(p=>p.id===r.posizione_id)?.name||'-')}</td>
+              <td>{r.photo_url ? <a href={r.photo_url} target="_blank" rel="noreferrer">apri</a> : '-'}</td>
+              <td>{isEdit ? (<input type="number" step="0.5" className="input" value={rapDraft?.ore||''} onChange={e=>setRapDraft(v=>({...v, ore:e.target.value}))} />) : (r.ore ?? '-')}</td>
+              <td>{isEdit ? (<input className="input" value={rapDraft?.descrizione||''} onChange={e=>setRapDraft(v=>({...v, descrizione:e.target.value}))} />) : (r.descrizione||'-')}</td>
+              <td><span className="badge">{r.stato||'-'}</span></td>
+              <td>
+                {isEdit ? (
+                  <>
+                    <button className="btn" onClick={()=>saveEditRap(r)}>Salva</button>
+                    <button className="btn secondary" style={{marginLeft:6}} onClick={cancelEditRap}>Annulla</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn" onClick={()=>setStato(r, 'approvato')}>Approva</button>
+                    <button className="btn secondary" style={{marginLeft:6}} onClick={()=>setStato(r, 'rifiutato')}>Rifiuta</button>
+                    <button className="btn" style={{marginLeft:6}} onClick={()=>startEditRap(r)}>Modifica</button>
+                    <button className="btn danger" style={{marginLeft:6}} onClick={()=>deleteRap(r)}>Elimina</button>
+                  </>
+                )}
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

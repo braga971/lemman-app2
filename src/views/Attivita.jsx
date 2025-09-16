@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
+import { AssegnaAttivitaPerCantiere, RiepilogoAttivita } from './Amministrazione.jsx'
 
-export default function Attivita({ user, db, refresh }){
+export default function Attivita({ user, db, refresh, isManager=false }){
   async function deletePhoto(t){
     try{
       if (t.photo_path){
@@ -20,7 +22,7 @@ export default function Attivita({ user, db, refresh }){
   return (
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
-        <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Attività assegnate</h3>
+        <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Attivita assegnate</h3>
         <table className="table">
           <thead><tr><th>Data</th><th>Titolo</th><th>Foto</th><th>Stato</th><th></th></tr></thead>
           <tbody>
@@ -36,6 +38,30 @@ export default function Attivita({ user, db, refresh }){
           </tbody>
         </table>
       </section>
+      {isManager && (
+        <>
+          <section className="card section print-activities" style={{marginTop:16}}>
+            <h3><Icon.Settings style={{marginRight:6}}/> Assegna attivita per cantiere</h3>
+            <AssegnaAttivitaPerCantiere profiles={db.profiles||[]} onDone={refresh} />
+          </section>
+          <section className="card section print-riepilogo" style={{marginTop:16}}>
+            <ManagerRiepilogoWrapper db={db} />
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ManagerRiepilogoWrapper({ db }){
+  const [dateRep, setDateRep] = useState(new Date().toISOString().slice(0,10))
+  return (
+    <div>
+      <div className="row" style={{marginBottom:8}}>
+        <label>Data:</label>
+        <input type="date" className="input" value={dateRep} onChange={e=>setDateRep(e.target.value)} />
+      </div>
+      <RiepilogoAttivita db={db} date={dateRep} />
     </div>
   )
 }

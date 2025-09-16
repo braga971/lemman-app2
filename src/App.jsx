@@ -13,7 +13,7 @@ import Amministrazione from './views/Amministrazione.jsx'
 import UtentiView from './views/UtentiView.jsx'
 import Dashboard from './views/Dashboard.jsx'
 import Report from './views/Report.jsx'
-import TurniSettimanali from './views/TurniSettimanali.jsx'
+import TurniSettimanali from './views/TurniSettimanaliView.jsx'
 import ChangePasswordModal from './components/ChangePasswordModal.jsx'
 
 const TABS = [
@@ -45,9 +45,7 @@ export default function App(){
     )
   }
 
-  const [theme,setTheme] = useState(()=> localStorage.getItem('theme') || 'light')
-  useEffect(()=>{ document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('theme', theme) }, [theme])
-  const toggleTheme = ()=> setTheme(t=> t==='dark'?'light':'dark')
+  // Tema disabilitato
 
   const user = useAuth()
   const profile = useProfile(user)
@@ -127,7 +125,7 @@ export default function App(){
 
   return (
     <div>
-      <Navbar tabs={TABS} active={active} onChange={setActive} onLogout={()=>supabase.auth.signOut()} isManager={isManager} onSearch={onSearch} notificationsCount={unread} onOpenNotifications={()=>setShowNotifs(v=>!v)} theme={theme} onToggleTheme={toggleTheme} onOpenChangePassword={()=>setShowChangePwd(true)} />
+      <Navbar tabs={TABS} active={active} onChange={setActive} onLogout={()=>supabase.auth.signOut()} isManager={isManager} onSearch={onSearch} notificationsCount={unread} onOpenNotifications={()=>setShowNotifs(v=>!v)} onOpenChangePassword={()=>setShowChangePwd(true)} />
       <div className='toast-container'>{toasts.map(t=> <div key={t.id} className='toast'>{t.msg}</div>)}</div>
       <ChangePasswordModal isOpen={showChangePwd} onClose={()=>setShowChangePwd(false)} user={user} onSuccess={msg=>pushToast(msg)} />
       {showNotifs && (
@@ -152,7 +150,7 @@ export default function App(){
         </div>
       )}
       {active==='home' && <Home user={user} profile={profile} db={db} />}
-      {active==='attivita' && <Attivita user={user} db={db} refresh={refresh} />}
+      {active==='attivita' && <Attivita user={user} db={db} refresh={refresh} isManager={isManager} />}
       {active==='rapportini' && <Rapportini user={user} db={db} refresh={refresh} isManager={isManager} />}
       {active==='bacheca' && <Bacheca db={db} isManager={isManager} refresh={refresh} />}
       {active==='turni_settimanali' && <TurniSettimanali isManager={isManager} />}

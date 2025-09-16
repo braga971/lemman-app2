@@ -1,6 +1,6 @@
 ﻿import * as Icon from './Icons.jsx'
 
-export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, notificationsCount=0, onOpenNotifications, theme='light', onToggleTheme, onOpenChangePassword }){
+export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, notificationsCount=0, onOpenNotifications, onOpenChangePassword }){
   return (
     <nav className="nav">
       <div className="container" style={{display:'flex', alignItems:'center'}}>
@@ -25,7 +25,6 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
             <Icon.Bell />
             {notificationsCount>0 && <span style={{position:'absolute',top:2,right:2,background:'tomato',color:'#fff',borderRadius:999,padding:'0 6px',fontSize:11}}>{notificationsCount}</span>}
           </button>
-          <button className="tab" onClick={onToggleTheme} title="Tema">{theme==='dark'?<Icon.Sun />:<Icon.Moon />}</button>
           <button className="tab" onClick={onOpenChangePassword} title="Cambia password"><Icon.Lock /> Password</button>
           <button className="tab" onClick={onLogout} title="Esci">
             <span style={{display:'inline-flex', alignItems:'center', gap:6}}>
