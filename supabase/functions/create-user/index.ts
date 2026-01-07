@@ -64,8 +64,9 @@ serve(async (req) => {
     }
     const uidNew = authRes.user?.id;
 
-    // Mappa ruolo ('manager' / 'user'). Se in DB usi 'dipendente', cambia 'user' -> 'dipendente'
-    const r = role === 'manager' ? 'manager' : 'user';
+    // Ruoli ammessi: 'manager' | 'user' | 'archived'
+    const allowed = new Set(['manager','user','archived'])
+    const r = allowed.has(String(role)) ? String(role) : 'user'
 
     const { error: profErr } = await supabase.from('profiles').upsert({
       id: uidNew, email, full_name: full_name || null, role: r

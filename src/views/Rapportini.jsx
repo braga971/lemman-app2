@@ -95,6 +95,8 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
         </div>
       </section>
 
+
+
       <section className="card section" style={{marginTop:16}}>
         <h3><Icon.List style={{marginRight:6}}/> I miei rapportini (settimana corrente)</h3>
         <table className="table">

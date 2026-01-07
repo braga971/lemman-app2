@@ -18,7 +18,9 @@ export default function UtentiView(){
 
   async function setRole(id, role){
     setErr('')
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', id)
+    const allowed = new Set(['user','manager','archived'])
+    const r = allowed.has(String(role)) ? String(role) : 'user'
+    const { error } = await supabase.from('profiles').update({ role: r }).eq('id', id)
     if (error) setErr(error.message); else load()
   }
 
@@ -29,13 +31,15 @@ export default function UtentiView(){
     }
     try{
       setLoading(true)
+      const allowed = new Set(['user','manager','archived'])
+      const desiredRole = allowed.has(String(form.role)) ? String(form.role) : 'user'
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { email: form.email.trim(), password: form.password, full_name: form.full_name?.trim() || null, role: form.role || 'user' }
+        body: { email: form.email.trim(), password: form.password, full_name: form.full_name?.trim() || null, role: desiredRole }
       })
       if (error) throw error
       // Inserisci/aggiorna profilo lato DB (in caso l'edge function non lo faccia)
       if (data?.user_id){
-        await supabase.from('profiles').upsert({ id: data.user_id, email: form.email.trim(), full_name: form.full_name?.trim() || null, role: form.role || 'user' })
+        await supabase.from('profiles').upsert({ id: data.user_id, email: form.email.trim(), full_name: form.full_name?.trim() || null, role: desiredRole })
       }
       setForm({ email:'', password:'', full_name:'', role:'user' })
       await load()
@@ -85,7 +89,7 @@ export default function UtentiView(){
             <select className="input" value={form.role} onChange={e=>setForm(f=>({...f, role:e.target.value}))}>
               <option value="user">User</option>
               <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
           <div>
@@ -110,7 +114,6 @@ export default function UtentiView(){
                     <select className="input" value={r.role || 'user'} onChange={e=>setRole(r.id, e.target.value)}>
                       <option value="user">User</option>
                       <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
                       <option value="archived">Archived</option>
                     </select>
                   </td>
