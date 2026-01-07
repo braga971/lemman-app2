@@ -81,7 +81,3 @@ create policy if not exists "rapportini_select_own" on public.rapportini
 for select using (auth.uid() = user_id or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'manager'));
 create policy if not exists "rapportini_insert_own" on public.rapportini
 for insert with check (auth.uid() = user_id);
-/* ---------- PROFILES ROLE CHECK ---------- */
-alter table if exists public.profiles
-  add constraint if not exists profiles_role_check
-  check (role in ('manager','user','archived'));

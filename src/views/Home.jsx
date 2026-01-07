@@ -61,7 +61,15 @@ export default function Home({ user, profile, db }){
     }
   }
 
-  return (
+
+  function viewTitle(str){
+    try{
+      const s = String(str||'').replace(/\\u00B0/g, '°')
+      return s.replace(/^1.*TURNO/, '1° TURNO')
+              .replace(/^2.*TURNO/, '2° TURNO')
+              .replace(/^3.*TURNO/, '3° TURNO')
+    }catch(_){ return String(str||'') }
+  }  return (
     <div className="container" style={{paddingTop:16}}>
       <div className="card section" style={{marginBottom:12}}>
         <h3><Icon.Home style={{marginRight:6}}/> Benvenuto{profile?.full_name ? `, ${profile.full_name}` : user?.email ? `, ${user.email}` : ''}</h3>
@@ -87,7 +95,7 @@ export default function Home({ user, profile, db }){
                             {list.map(t=> (
                               <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
                                 <button className="btn" onClick={()=>toggle(t)}>{t.stato==='done'?'✅':'⬜️'}</button>
-                                <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{String(t.title||'').replace(/^1.*TURNO/,'1\\u00B0 TURNO').replace(/^2.*TURNO/,'2\\u00B0 TURNO').replace(/^3.*TURNO/,'3\\u00B0 TURNO')}</span>
+                                <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{(typeof viewTitle==='function'?viewTitle(t.title):t.title)}</span>
                                 {t.photo_url && (<><a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a><button className="btn danger" style={{marginLeft:6}} onClick={()=>deletePhotoForTask(t)}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Elimina foto</span></button></>)}
                               </li>
                             ))}
@@ -133,7 +141,7 @@ export default function Home({ user, profile, db }){
                         {list.map(t=>(
                           <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
                             <button className="btn" onClick={()=>toggle(t)}>{t.stato==='done'?'✅':'⬜️'}</button>
-                            <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{String(t.title||'').replace(/^1.*TURNO/,'1\\u00B0 TURNO').replace(/^2.*TURNO/,'2\\u00B0 TURNO').replace(/^3.*TURNO/,'3\\u00B0 TURNO')}</span>
+                            <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{(typeof viewTitle==='function'?viewTitle(t.title):t.title)}</span>
                             {t.photo_url && (<><a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a><button className="btn danger" style={{marginLeft:6}} onClick={()=>deletePhotoForTask(t)}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Elimina foto</span></button></>)}
                           </li>
                         ))}
@@ -164,10 +172,4 @@ export default function Home({ user, profile, db }){
     </div>
   )
 }
-
-
-
-
-
-
 
