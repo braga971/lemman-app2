@@ -178,7 +178,7 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
 
   return (
     <div>
-      <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Assegna Attivita</h3>
+      <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Assegna Attività</h3>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
         <label>Data:</label>
         <input type="date" value={data} onChange={e=>setData(e.target.value)} />
@@ -249,7 +249,7 @@ export function RiepilogoAttivita({ db, date }){
   }
   return (
     <div>
-      <h3><Icon.BarChart style={{marginRight:6}}/> Riepilogo Attivita per cantiere</h3>
+      <h3><span className="icon-chip chip-dashboard" style={{marginRight:6}}><Icon.BarChart/></span> Riepilogo Attività per cantiere</h3>
       {byCant.length===0 && (<div className="muted" style={{marginTop:8}}>Nessuna Attivita per la data selezionata</div>)}
       {byCant.map(([cant,list])=> (
         <div key={cant} className="card" style={{marginTop:12}}>
@@ -355,7 +355,7 @@ export default function Amministrazione({ db, profiles, refresh }){
     <div className="container" style={{paddingTop:16}}>
       <div className="grid2">
         <section className="card section">
-          <h3><Icon.FileText style={{marginRight:6}}/> Commesse & Cantieri</h3>
+          <h3><span className="icon-chip chip-report" style={{marginRight:6}}><Icon.FileText/></span> Commesse & Cantieri</h3>
           <div className="grid2">
             <input placeholder="Codice commessa" value={comm.code} onChange={e=>setComm({...comm, code:e.target.value})} />
             <select className="select" value={comm.cantiere} onChange={e=>setComm({...comm, cantiere:e.target.value})}>
@@ -409,7 +409,7 @@ export default function Amministrazione({ db, profiles, refresh }){
         </section>
 
         <section className="card section">
-          <h3><Icon.List style={{marginRight:6}}/> Posizioni di Commessa</h3>
+          <h3><span className="icon-chip chip-utenti" style={{marginRight:6}}><Icon.List/></span> Posizioni di Commessa</h3>
           <select className="select" value={posForm.commessa_id} onChange={e=>setPosForm({...posForm, commessa_id:e.target.value})}>
             <option value="">- Seleziona commessa -</option>
             {(db.commesse||[]).map(c=> (<option key={c.id} value={String(c.id)}>{c.code} - {c.cantiere||'-'}</option>))}
@@ -453,8 +453,6 @@ export default function Amministrazione({ db, profiles, refresh }){
     </div>
   )
 }
-
-
 
 
 

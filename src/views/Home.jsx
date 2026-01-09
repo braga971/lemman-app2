@@ -72,11 +72,11 @@ export default function Home({ user, profile, db }){
   }  return (
     <div className="container" style={{paddingTop:16}}>
       <div className="card section" style={{marginBottom:12}}>
-        <h3><Icon.Home style={{marginRight:6}}/> Benvenuto{profile?.full_name ? `, ${profile.full_name}` : user?.email ? `, ${user.email}` : ''}</h3>
+        <h3><span className="icon-chip chip-home" style={{marginRight:6}}><Icon.Home/></span> Benvenuto{profile?.full_name ? `, ${profile.full_name}` : user?.email ? `, ${user.email}` : ''}</h3>
       </div>
       <div className="grid2">
         <section className="card section">
-          <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Le mie attività</h3>
+          <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Le mie attività</h3>
 
           {([yesterday,today,tomorrow]).map(day=>(
             <div key={day} style={{marginTop:8}}>
@@ -159,7 +159,7 @@ export default function Home({ user, profile, db }){
 
       
 <div className="card section" style={{marginTop:16}}>
-        <h3><Icon.Megaphone style={{marginRight:6}}/> Bacheca</h3>
+        <h3><span className="icon-chip chip-bacheca" style={{marginRight:6}}><Icon.Megaphone/></span> Bacheca</h3>
         <ul style={{margin:0,paddingLeft:16}}>
           {(db.bacheca||[]).map(b=>(
             <li key={b.id}>
@@ -172,4 +172,3 @@ export default function Home({ user, profile, db }){
     </div>
   )
 }
-

@@ -22,7 +22,7 @@ export default function Attivita({ user, db, refresh, isManager=false }){
   return (
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
-        <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Attivita assegnate</h3>
+        <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Attività assegnate</h3>
         <table className="table">
           <thead><tr><th>Data</th><th>Titolo</th><th>Foto</th><th>Stato</th><th></th></tr></thead>
           <tbody>
@@ -41,7 +41,7 @@ export default function Attivita({ user, db, refresh, isManager=false }){
       {isManager && (
         <>
           <section className="card section print-activities" style={{marginTop:16}}>
-            <h3><Icon.Settings style={{marginRight:6}}/> Assegna attivita per cantiere</h3>
+            <h3><span className="icon-chip chip-admin" style={{marginRight:6}}><Icon.Settings/></span> Assegna attività per cantiere</h3>
             <AssegnaAttivitaPerCantiere profiles={db.profiles||[]} onDone={refresh} />
           </section>
           <section className="card section print-riepilogo" style={{marginTop:16}}>
@@ -65,4 +65,3 @@ function ManagerRiepilogoWrapper({ db }){
     </div>
   )
 }
-

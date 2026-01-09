@@ -29,8 +29,11 @@ export default function UtentiView(){
     }
     try{
       setLoading(true)
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { email: form.email.trim(), password: form.password, full_name: form.full_name?.trim() || null, role: form.role || 'user' }
+        body: { email: form.email.trim(), password: form.password, full_name: form.full_name?.trim() || null, role: form.role || 'user' },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (error) throw error
       // Inserisci/aggiorna profilo lato DB (in caso l'edge function non lo faccia)
@@ -40,7 +43,13 @@ export default function UtentiView(){
       setForm({ email:'', password:'', full_name:'', role:'user' })
       await load()
     } catch(e){
-      setErr(String(e?.message || e))
+      let msg = String(e?.message || e)
+      try{
+        const ctx = e?.context
+        const body = ctx?.body || ctx?.response?.error || ctx?.response?.message
+        if (typeof body === 'string' && body.length) msg = body
+      }catch(_){}
+      setErr(msg)
     } finally {
       setLoading(false)
     }
@@ -56,6 +65,27 @@ export default function UtentiView(){
       // Non cancellare i rapportini: conserva il profilo marcandolo come archiviato
       await supabase.from('profiles').update({ role: 'archived' }).eq('id', row.id)
       await load()
+    } catch(e){
+      setErr(String(e?.message || e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resetPassword(row){
+    const pwd = prompt(`Nuova password per ${row.email}:`)
+    if(!pwd) return
+    setErr('')
+    try{
+      setLoading(true)
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
+      const { error } = await supabase.functions.invoke('reset-password', {
+        body: { user_id: row.id, password: pwd },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined
+      })
+      if (error) throw error
+      alert('Password aggiornata')
     } catch(e){
       setErr(String(e?.message || e))
     } finally {
@@ -115,7 +145,8 @@ export default function UtentiView(){
                     </select>
                   </td>
                   <td>{r.created_at ? new Date(r.created_at).toISOString().slice(0,19).replace('T',' ') : '—'}</td>
-                  <td style={{textAlign:'right'}}>
+                  <td style={{textAlign:'right', display:'flex', gap:6, justifyContent:'flex-end'}}>
+                    <button className="btn" onClick={()=>resetPassword(r)} disabled={loading} title="Reimposta password"><Icon.Lock /> Reset</button>
                     <button className="btn danger" onClick={()=>deleteUser(r)} disabled={loading}><Icon.Trash /> Elimina</button>
                   </td>
                 </tr>

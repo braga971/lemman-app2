@@ -64,7 +64,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   return (
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
-        <h3><Icon.FileText style={{marginRight:6}}/> Nuovo rapportino</h3>
+        <h3><span className="icon-chip chip-report" style={{marginRight:6}}><Icon.FileText/></span> Nuovo rapportino</h3>
         <div className="grid3">
           {isManager && (
             <select value={forUser} onChange={e=>setForUser(e.target.value)}>
@@ -96,7 +96,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       </section>
 
       <section className="card section" style={{marginTop:16}}>
-        <h3><Icon.List style={{marginRight:6}}/> I miei rapportini (settimana corrente)</h3>
+        <h3><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.List/></span> I miei rapportini (settimana corrente)</h3>
         <table className="table">
           <thead><tr><th>Data</th><th>Commessa</th><th>Posizione</th><th>Cantiere</th><th>Ore</th><th>Stato</th></tr></thead>
           <tbody>
@@ -115,7 +115,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       </section>
       {isManager && (
         <section className="card section" style={{marginTop:16}}>
-          <h3><Icon.FileText style={{marginRight:6}}/> Ultimi Rapportini</h3>
+          <h3><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.FileText/></span> Ultimi Rapportini</h3>
           <ManagerRapportiniTable db={db} profiles={db.profiles||[]} refresh={refresh} />
         </section>
       )}
