@@ -1,7 +1,0 @@
-function addUserToSlot(slot,uid){ setValues(v=>{ const next={...v}; for(const s of SLOTS){ const k=s.key; const arr=(next[k]?.users)||[]; next[k]={users:arr.filter(x=>x!==uid)} } next[slot]={users:[...((next[slot]?.users)||[]), uid]}; return next }) }
-  function removeUser(uid){ setValues(v=>{ const next={...v}; for(const s of SLOTS){ const k=s.key; next[k]={users:((next[k]?.users)||[]).filter(x=>x!==uid)} } return next }) }
-  function onDragStartUser(e,uid){ e.dataTransfer.setData('text/plain', uid) }
-  function onDropSlot(e,slot){ const uid=e.dataTransfer.getData('text/plain'); if(!uid) return; if(assignedElsewhere.has(uid)){ alert('Questo utente è già assegnato in un altro cantiere per questa settimana.'); return } addUserToSlot(slot, uid) }
-  function onDragOver(e){ e.preventDefault() }
-
-  

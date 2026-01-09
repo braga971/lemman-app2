@@ -50,7 +50,8 @@ export default function App(){
   const user = useAuth()
   const profile = useProfile(user)
   const [active,setActive]=useState('home')
-  const isManager = profile?.role==='manager'
+  // Considera anche user.user_metadata.role per compatibilità/sync
+  const isManager = (profile?.role==='manager') || (user?.user_metadata?.role==='manager')
 
   // Blocca accesso a profili archiviati
   useEffect(()=>{
@@ -161,7 +162,6 @@ export default function App(){
     </div>
   )
 }
-
 
 
 
