@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import { useAuth } from '../_integration/hooks.js'
 import * as Icon from '../components/Icons.jsx'
@@ -129,7 +129,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   function addUserToSlot(slot,uid){
     setValues(v=>{
       const next={...v};
-      for(const s of SLOTS){ const k=s.key; const arr=(next[k]?.users)||[]; next[k]={users:arr.filter(x=>x!==uid)} }
+      for(const s of SLOTS){ const k=s.key; const arr=(next[k]?.users)||[]; next[k]={users:arr.filter(x=> userId(x) !== uid)} }
       const p = profiles.find(x=>x.id===uid)
       const label = displayName(p) || uid
       next[slot]={users:[...((next[slot]?.users)||[]), { id: uid, name: label } ]}
@@ -165,7 +165,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   return (
     <div className="page">
       <style>{`
-        /* Aumenta leggibilitÃ  in stampa */
+        /* Aumenta leggibilit� in stampa */
         @media print {
           @page { size: A4 landscape; margin: 8mm }
           .print-area { font-size: 12px }

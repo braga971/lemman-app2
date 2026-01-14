@@ -22,13 +22,13 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const [cantieri, setCantieri] = useState([])
   const [cantiere, setCantiere] = useState('')
   const [fallbackCantieri, setFallbackCantieri] = useState(false)
-  const SHIFTS = ['1� TURNO','2� TURNO','3� TURNO']
-  const SCHEDULE_KEYS = { '1� TURNO': ['T1','T1_0600_1400'], '2� TURNO': ['T2','T2_1400_2200'], '3� TURNO': ['T3_2200_0600'] }
-  const [rowsByShift, setRowsByShift] = useState(()=> ({
-    '1� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
-    '2� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
-    '3� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
-  }))
+  const SHIFTS = ['1\u00B0 TURNO','2\u00B0 TURNO','3\u00B0 TURNO','GIORNALIERO']
+  const SCHEDULE_KEYS = { '1\u00B0 TURNO': ['T1','T1_0600_1400'], '2\u00B0 TURNO': ['T2','T2_1400_2200'], '3\u00B0 TURNO': ['T3_2200_0600'], 'GIORNALIERO': ['GIORNALIERO'] }
+  const [rowsByShift, setRowsByShift] = useState(()=> {
+    const obj = {}
+    for (const s of SHIFTS){ obj[s] = Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })) }
+    return obj
+  })
   const [saving, setSaving] = useState(false)
   // Refs per autosave con stato aggiornato
   const rowsRef = useRef(rowsByShift)
@@ -95,7 +95,7 @@ function scheduleAutoSave(shift, i){
     setRowsByShift(v=> ({ ...v, [shift]: v[shift].filter((_,idx)=> idx!==i) }))
   }
 
-  // Carica le Attivita gi� salvate per data+cantiere selezionato
+  // Carica le Attività già salvate per data+cantiere selezionato
   useEffect(()=>{ (async()=>{
     try{
       const cName = (cantieri.find(c=> String(c.id)===String(cantiere))||{}).name || null
@@ -106,13 +106,14 @@ function scheduleAutoSave(shift, i){
         .eq('data', data)
         .eq('cantiere', cName)
         .order('created_at', { ascending:true })
-      const base = { '1� TURNO': [], '2� TURNO': [], '3� TURNO': [] }
+      const base = {}; for (const s of SHIFTS) base[s] = []
       for (const t of (tasks||[])){
         const parts = String(t.title||'').split(' - ')
         const maybeShift = parts[0]
         const rest = parts.slice(1).join(' - ')
-        const shift = SHIFTS.includes(maybeShift) ? maybeShift : '1� TURNO'
-        base[(SHIFTS.find(s => displayShift(s) === displayShift(maybeShift)) || SHIFTS[0])].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
+        const normalized = displayShift(maybeShift)
+        const shift = SHIFTS.find(s => displayShift(s) === normalized) || SHIFTS[0]
+        base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
       }
       // Prefill dai turni settimanali
       try{
@@ -144,7 +145,7 @@ function scheduleAutoSave(shift, i){
       }catch(_){ /* ignore schedule prefill errors */ }
       const padded = {}
       for (const s of SHIFTS){
-        const list = base[s]
+        const list = base[s] || []
         while (list.length < 6) list.push({ user_id:'', title:'', file:null, task_id:null })
         padded[s] = list
       }
@@ -241,14 +242,14 @@ function scheduleAutoSave(shift, i){
       )}
       <div className="card print-activities" style={{marginTop:8}}>
         {cantiereName && (<div style={{textAlign:'center', fontWeight:800}}>{String(cantiereName).toUpperCase()}</div>)}
-        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attivita del {data}</div>
+        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attività del {data}</div>
         {SHIFTS.map(shift => (
           <div key={shift} className="card" style={{marginTop:10}}>
             <div style={{fontWeight:700, textAlign:'center', marginBottom:6}}>{displayShift(shift)}</div>
             <table className="table">
-              <thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attivita</th><th style={{width:120}} className="no-print m-hide">Foto</th><th className="no-print"></th></tr></thead>
+              <thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attività</th><th style={{width:120}} className="no-print m-hide">Foto</th><th className="no-print"></th></tr></thead>
               <tbody>
-                {rowsByShift[shift].map((r,i)=>(
+                {(rowsByShift[shift]||[]) .map((r,i)=>(
                   <tr key={i} data-blank={!r.user_id && !r.title ? '1':'0'}>
                     <td>
                       <select className="select" value={r.user_id} onChange={e=>{ setRow(shift,i,{ user_id:e.target.value }); scheduleAutoSave(shift,i) }}>
@@ -257,7 +258,7 @@ function scheduleAutoSave(shift, i){
                       </select>
                     </td>
                     <td>
-                      <textarea className="input" rows={2} value={r.title} onChange={e=>{ setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i) }} placeholder="Descrizione Attivita"></textarea>
+                      <textarea className="input" rows={2} value={r.title} onChange={e=>{ setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i) }} placeholder="Descrizione Attività"></textarea>
                     </td>
                     <td className="no-print m-hide"><input type="file" accept="image/*" onChange={e=>setRow(shift,i,{ file:e.target.files?.[0]||null })} /></td>
                     <td className="no-print">
@@ -291,11 +292,11 @@ export function RiepilogoAttivita({ db, date }){
   return (
     <div>
       <h3><span className="icon-chip chip-dashboard" style={{marginRight:6}}><Icon.BarChart/></span> Riepilogo Attività per cantiere</h3>
-      {byCant.length===0 && (<div className="muted" style={{marginTop:8}}>Nessuna Attivita per la data selezionata</div>)}
+      {byCant.length===0 && (<div className="muted" style={{marginTop:8}}>Nessuna Attività per la data selezionata</div>)}
       {byCant.map(([cant,list])=> (
         <div key={cant} className="card" style={{marginTop:12}}>
           <div style={{fontWeight:700, textAlign:'center'}}>{cant}</div>
-          <table className="table"><thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attivita</th><th>Stato</th></tr></thead>
+          <table className="table"><thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attività</th><th>Stato</th></tr></thead>
             <tbody>
               {list.map(r=> (
                 <tr key={r.id}>
@@ -315,7 +316,6 @@ export function RiepilogoAttivita({ db, date }){
     </div>
   )
 }
-
 export default function Amministrazione({ db, profiles, refresh }){
   const [dateRep, setDateRep] = useState(new Date().toISOString().slice(0,10))
   const [hiddenApproved, setHiddenApproved] = useState(()=> new Set())
@@ -497,3 +497,16 @@ export default function Amministrazione({ db, profiles, refresh }){
 
 
  
+
+
+
+
+
+
+
+
+
+
+
+
+
