@@ -7,12 +7,8 @@
 *{ box-sizing:border-box }
 body{ margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text) }
 .container{ max-width:1120px; margin:0 auto; padding:16px }
-<<<<<<< HEAD
 .nav{ background:rgba(24,24,27,0.9); backdrop-filter:saturate(120%) blur(8px); color:#fff; padding:8px 12px; position:sticky; top:0; z-index:100; border-bottom:1px solid rgba(255,255,255,0.08) }
 .nav .container{ display:flex; flex-wrap:wrap; align-items:center }
-=======
-.nav{ background:rgba(17,17,17,0.7); backdrop-filter:saturate(120%) blur(8px); color:#fff; padding:8px 12px; position:sticky; top:0; z-index:10; border-bottom:1px solid rgba(255,255,255,0.08) }
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
 .nav .tabs{ display:flex; gap:8px; align-items:center }
 .tab{ background:transparent; border:none; color:#fff; padding:6px 12px; border-radius:999px; cursor:pointer; transition:background .15s ease, transform .08s ease }
 .tab:hover{ background:rgba(255,255,255,0.08) }
@@ -130,13 +126,8 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 :root[data-theme="dark"] .menu-item:hover{ background:rgba(255,255,255,0.06) }
 
 /* Drawer menu (mobile) */
-<<<<<<< HEAD
-.drawer-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9998; opacity:0; animation: fadeIn .18s ease forwards }
-.drawer-panel{ position:fixed; inset:0; width:100vw; height:100vh; background:var(--card); color:var(--text); z-index:9999; transform:translateX(-100%); transition:transform .2s ease; overflow:auto }
-=======
 .drawer-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:45; opacity:0; animation: fadeIn .18s ease forwards }
 .drawer-panel{ position:fixed; top:0; left:0; bottom:0; width:min(76%, 320px); background:var(--card); color:var(--text); border-right:1px solid var(--border); z-index:50; transform:translateX(-100%); transition:transform .2s ease }
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
 .drawer-panel.open{ transform:translateX(0) }
 
 /* Desktop dropdown */

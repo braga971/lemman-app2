@@ -154,7 +154,7 @@ function scheduleAutoSave(shift, i){
           if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
         }catch(_){ /* ignore upload errors */ }
       }
-      const payload = { user_id:r.user_id, data, title:`${shift} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+      const payload = { user_id:r.user_id, data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
       if (photo_url) Object.assign(payload, { photo_url, photo_path })
       if (r.task_id){
         const { error } = await supabase.from('tasks').update(payload).eq('id', r.task_id)
@@ -188,7 +188,7 @@ function scheduleAutoSave(shift, i){
               if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
             }catch(_){ /* ignore upload errors */ }
           }
-          const payload = { user_id:r.user_id, data, title:`${shift} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+          const payload = { user_id:r.user_id, data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
           if (photo_url) Object.assign(payload, { photo_url, photo_path })
           if (r.task_id){
             await supabase.from('tasks').update(payload).eq('id', r.task_id)
@@ -483,8 +483,4 @@ export default function Amministrazione({ db, profiles, refresh }){
 }
 
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
+ 

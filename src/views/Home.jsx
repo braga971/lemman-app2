@@ -1,213 +1,79 @@
-
-// ---- Photo deletion helpers (Supabase Storage) ----
-function parseStoragePublicUrl(url){
-  try{
-    // format: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path...>
-    const i = url.indexOf('/storage/v1/object/public/')
-    if (i === -1) return null
-    const rest = url.slice(i + '/storage/v1/object/public/'.length)
-    const slash = rest.indexOf('/')
-    if (slash === -1) return null
-    const bucket = rest.slice(0, slash)
-    const path = rest.slice(slash + 1)
-    return { bucket, path }
-  }catch(e){ return null }
-}
-
-async function deletePhotoForTask(t){
-  try{
-    if (!t || !t.photo_url) return
-    const info = parseStoragePublicUrl(t.photo_url)
-    if (!info){ 
-      // Fallback: only clear field
-      await supabase.from('tasks').update({ photo_url: null }).eq('id', t.id)
-      return
-    }
-    const { error: remErr } = await supabase.storage.from(info.bucket).remove([info.path])
-    if (remErr){ alert(remErr.message); return }
-    const { error: updErr } = await supabase.from('tasks').update({ photo_url: null }).eq('id', t.id)
-    if (updErr){ alert(updErr.message); return }
-  }catch(err){
-    alert(String(err))
-  }
-}
 import { useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
-
-function dayKeyLocal(d){
-  const dt = new Date(d)
-  const y = dt.getFullYear()
-  const m = String(dt.getMonth()+1).padStart(2,'0')
-  const dd = String(dt.getDate()).padStart(2,'0')
-  return `${y}-${m}-${dd}`
-}
+import { RiepilogoAttivita } from './Amministrazione.jsx'
 
 export default function Home({ user, profile, db }){
-  const now = new Date()
+  const displayName = profile?.full_name ? `, ${profile.full_name}` : (user?.email ? `, ${user.email}` : '')
+  const [mgrDate, setMgrDate] = useState(new Date().toISOString().slice(0,10))
+  // helpers per vista "Le mie attività"
+  const dayKeyLocal = (d)=>{ const dt=new Date(d); const y=dt.getFullYear(); const m=String(dt.getMonth()+1).padStart(2,'0'); const dd=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}` }
+  const now = new Date();
   const today = dayKeyLocal(now)
   const yesterday = dayKeyLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate()-1))
   const tomorrow = dayKeyLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate()+1))
-
   const myTasks = (db.tasks||[]).filter(t=>t.user_id===user.id)
-  const [mgrDate, setMgrDate] = useState(today)
   const byDay = { [yesterday]:[], [today]:[], [tomorrow]:[] }
-  for (const t of myTasks){ if (byDay[t.data]) byDay[t.data].push(t) }
-
-  async function toggle(t){
-    const next = t.stato==='done'?'todo':'done'
-    await supabase.from('tasks').update({ stato: next }).eq('id', t.id)
-    // Se l'attività è completata, rimuovi foto per liberare spazio
-    if (next === 'done'){
-      try{ await deletePhotoForTask(t) }catch(_){ /* ignore */ }
-    }
+  for(const t of myTasks){ if(byDay[t.data]) byDay[t.data].push(t) }
+  const viewTitle = (str)=>{
+    try{ const s=String(str||'').replace(/\\u00B0/g,'°'); return s.replace(/^1.*TURNO/,'1° TURNO').replace(/^2.*TURNO/,'2° TURNO').replace(/^3.*TURNO/,'3° TURNO') }catch(_){ return String(str||'') }
   }
-
-
-  function viewTitle(str){
-    try{
-      const s = String(str||'').replace(/\\u00B0/g, '°')
-      return s.replace(/^1.*TURNO/, '1° TURNO')
-              .replace(/^2.*TURNO/, '2° TURNO')
-              .replace(/^3.*TURNO/, '3° TURNO')
-    }catch(_){ return String(str||'') }
-  }  return (
+  async function toggleTask(t){ const next = t.stato==='done'?'todo':'done'; await supabase.from('tasks').update({ stato: next }).eq('id', t.id) }
+  return (
     <div className="container" style={{paddingTop:16}}>
       <div className="card section" style={{marginBottom:12}}>
-        <h3><span className="icon-chip chip-home" style={{marginRight:6}}><Icon.Home/></span> Benvenuto{profile?.full_name ? `, ${profile.full_name}` : user?.email ? `, ${user.email}` : ''}</h3>
+        <h3><span className="icon-chip chip-home" style={{marginRight:6}}><Icon.Home/></span> Benvenuto{displayName}</h3>
       </div>
-      <div className="grid2">
-<<<<<<< HEAD
-                <section className="card section">
-=======
-        <section className="card section">
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
-          <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Le mie attività</h3>
-
-          {[yesterday, today, tomorrow].map(day => (
-            <div key={day} style={{marginTop:8}}>
-              <h4 style={{margin:'6px 0'}}>{day===yesterday?'Ieri':day===today?'Oggi':'Domani'} <small>({day})</small></h4>
-              {(byDay[day]||[]).length === 0 ? (
-                <div className="muted">Nessuna attività</div>
-              ) : (
-                (() => {
-                  const groups = {};
-                  for (const t of byDay[day]) { const k = t.cantiere || '(Senza cantiere)'; (groups[k] ??= []).push(t); }
-                  const order = Object.entries(groups).sort((a,b) => a[0].localeCompare(b[0]));
-                  return (
-                    <div>
-                      {order.map(([cant, list]) => (
-                        <div key={cant} style={{margin:'6px 0'}}>
-                          <div className="muted" style={{fontWeight:600, marginBottom:2}}>{cant}</div>
-                          <ul style={{margin:0,paddingLeft:16}}>
-                            {list.map(t => (
-                              <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
-                                <button className="btn" onClick={() => toggle(t)}>{t.stato==='done' ? '✓' : '☐'}</button>
-                                <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{viewTitle(t.title)}</span>
-                                {t.photo_url && (
-                                  <>
-                                    <a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a>
-                                    <button className="btn danger" style={{marginLeft:6}} onClick={() => deletePhotoForTask(t)}>
-                                      <span style={{display:'inline-flex',gap:6,alignItems:'center'}}>
-                                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
-                                        Elimina foto
-                                      </span>
-                                    </button>
-                                  </>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()
-              )}
-            </div>
-          ))}
-        </section>
-
-      
-      </div>
-
-                  {profile && (profile.role==='manager' || profile.is_manager) && (
-        <>
-          <div className="row" style={{gap:8, alignItems:'center', marginTop:8}}>
+      <section className="card section" style={{marginTop:6}}>
+        <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Le mie attività</h3>
+        {[yesterday, today, tomorrow].map(day => (
+          <div key={day} style={{marginTop:8}}>
+            <h4 style={{margin:'6px 0'}}>{day===yesterday?'Ieri':day===today?'Oggi':'Domani'} <small>({day})</small></h4>
+            {(byDay[day]||[]).length===0 ? (
+              <div className="muted">Nessuna attività</div>
+            ) : (
+              (()=>{
+                const groups={}; for(const t of byDay[day]){ const k=t.cantiere||'(Senza cantiere)'; (groups[k]??=[]).push(t) }
+                const order = Object.entries(groups).sort((a,b)=> a[0].localeCompare(b[0]))
+                return (
+                  <div>
+                    {order.map(([cant,list])=>(
+                      <div key={cant} style={{margin:'6px 0'}}>
+                        <div className="muted" style={{fontWeight:600, marginBottom:2}}>{cant}</div>
+                        <ul style={{margin:0,paddingLeft:16}}>
+                          {list.map(t=>(
+                            <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
+                              <button className="btn" onClick={()=>toggleTask(t)}>{t.stato==='done' ? '✓' : '○'}</button>
+                              <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{viewTitle(t.title)}</span>
+                              {t.photo_url && <a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()
+            )}
+          </div>
+        ))}
+      </section>
+      {profile && (profile.role==='manager' || profile.is_manager) && (
+        <section className="card section" style={{marginTop:16}}>
+          <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Attività per cantiere</h3>
+          <div className="row" style={{gap:8, alignItems:'center', margin:'6px 0 10px'}}>
             <label>Data:</label>
             <input type="date" className="input" value={mgrDate} onChange={e=>setMgrDate(e.target.value)} />
           </div>
-          <section className="card section" style={{marginTop:16}}>
-            <h3><Icon.Users style={{marginRight:6}}/> Attività per cantiere</h3>
-            {[mgrDate].map(day => {
-              const dayTasks = (db.tasks||[]).filter(t=>t.data===day)
-              const byCant = {}
-              for (const t of dayTasks){ const k=t.cantiere||'(Senza cantiere)'; (byCant[k]??=[]).push(t) }
-              const cantieri = Object.keys(byCant).sort((a,b)=> a.localeCompare(b))
-              return (
-                <div key={day} style={{marginTop:8}}>
-                  <h4 style={{margin:'6px 0'}}>Attività del {day} <small>({day})</small></h4>
-                  {cantieri.length===0 ? (
-                    <div className="muted">Nessuna attività</div>
-                  ) : (
-                    <div style={{display:'flex', flexWrap:'wrap', gap:12}}>
-                      {cantieri.map(cant => {
-                        const list = byCant[cant]
-                        const byUser = {}
-                        for (const t of list){ (byUser[t.user_id]??=[]).push(t) }
-                        const order = Object.entries(byUser).sort((a,b)=>{
-                          const A = (db.profiles||[]).find(p=>p.id===a[0])?.full_name||''
-                          const B = (db.profiles||[]).find(p=>p.id===b[0])?.full_name||''
-                          return A.localeCompare(B)
-                        })
-                        return (
-                          <div key={cant} className="card" style={{minWidth:280, flex:'1 1 320px'}}>
-                            <div style={{fontWeight:700, marginBottom:6}}>{cant}</div>
-                            {order.map(([uid, tasks])=>{
-                              const name=(db.profiles||[]).find(p=>p.id===uid)?.full_name || (db.profiles||[]).find(p=>p.id===uid)?.email || '-'
-                              return (
-                                <div key={uid} style={{margin:'4px 0 8px 0'}}>
-                                  <div className="muted" style={{fontWeight:600, marginBottom:4}}>{name}</div>
-                                  <ul style={{margin:0,paddingLeft:16}}>
-                                    {tasks.map(t=>(
-                                      <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
-                                        <button className="btn" onClick={()=>toggle(t)}>{t.stato==='done'?'✓':'☐'}</button>
-                                        <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{viewTitle(t.title)}</span>
-                                        {t.photo_url && (
-                                          <>
-                                            <a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a>
-                                            <button className="btn danger" style={{marginLeft:6}} onClick={()=>deletePhotoForTask(t)}>
-                                              <span style={{display:'inline-flex',gap:6,alignItems:'center'}}>
-                                                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
-                                                Elimina foto
-                                              </span>
-                                            </button>
-                                          </>
-                                        )}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </section>
-        </>
+          <RiepilogoAttivita db={db} date={mgrDate} />
+        </section>
       )}
-      
-<div className="card section" style={{marginTop:16}}>
+      <div className="card section" style={{marginTop:16}}>
         <h3><span className="icon-chip chip-bacheca" style={{marginRight:6}}><Icon.Megaphone/></span> Bacheca</h3>
         <ul style={{margin:0,paddingLeft:16}}>
-          {(db.bacheca||[]).map(b=>(
+          {(db?.bacheca||[]).map(b=>(
             <li key={b.id}>
-              <b>{b.title||'—'}</b>
+              <b>{b.title||'-'}</b>
               <span className="muted"> ({new Date(b.created_at).toLocaleString()})</span>
             </li>
           ))}
@@ -216,14 +82,3 @@ export default function Home({ user, profile, db }){
     </div>
   )
 }
-<<<<<<< HEAD
-
-
-
-
-
-
-
-
-=======
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d

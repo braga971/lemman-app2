@@ -46,18 +46,17 @@ export default function UtentiView(){
       let msg = String(e?.message || e)
       try{
         const ctx = e?.context
-<<<<<<< HEAD
+ 
         const status = ctx?.response?.status || ctx?.status
-        const body = ctx?.body || ctx?.response?.error || ctx?.response?.message
-        if (typeof body === 'string' && body.length) msg = body
+        
         if (status === 404) msg = "Edge Function 'create-user' non trovata. Esegui 'supabase functions deploy create-user' e imposta i secrets."
         if (status === 401) msg = 'Non autorizzato. Effettua il login e riprova.'
         if (status === 403) msg = 'Accesso negato: solo i manager possono creare utenti.'
         if (status === 409) msg = 'Email già registrata. Usa un\'altra email oppure elimina l\'utente esistente.'
-=======
+ 
         const body = ctx?.body || ctx?.response?.error || ctx?.response?.message
         if (typeof body === 'string' && body.length) msg = body
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
+ 
       }catch(_){}
       setErr(msg)
     } finally {

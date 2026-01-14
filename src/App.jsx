@@ -201,10 +201,4 @@ export default function App(){
   )
 }
 
-
-
-<<<<<<< HEAD
-
-
-=======
->>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
+  
