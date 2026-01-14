@@ -112,7 +112,7 @@ function scheduleAutoSave(shift, i){
         const maybeShift = parts[0]
         const rest = parts.slice(1).join(' - ')
         const shift = SHIFTS.includes(maybeShift) ? maybeShift : '1� TURNO'
-        base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
+        base[(SHIFTS.find(s => displayShift(s) === displayShift(maybeShift)) || SHIFTS[0])].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
       }
       // Prefill dai turni settimanali
       try{

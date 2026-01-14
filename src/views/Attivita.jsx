@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
-import { AssegnaAttivitaPerCantiere, RiepilogoAttivita } from './Amministrazione.jsx'
+import { AssegnaAttivitaPerCantiere } from './Amministrazione.jsx'
 
 export default function Attivita({ user, db, refresh, isManager=false }){
   async function deletePhoto(t){
@@ -39,29 +39,14 @@ export default function Attivita({ user, db, refresh, isManager=false }){
         </table>
       </section>
       {isManager && (
-        <>
-          <section className="card section print-activities" style={{marginTop:16}}>
+        <section className="card section print-activities" style={{marginTop:16}}>
             <h3><span className="icon-chip chip-admin" style={{marginRight:6}}><Icon.Settings/></span> Assegna attività per cantiere</h3>
             <AssegnaAttivitaPerCantiere profiles={db.profiles||[]} onDone={refresh} />
           </section>
-          <section className="card section print-riepilogo" style={{marginTop:16}}>
-            <ManagerRiepilogoWrapper db={db} />
-          </section>
-        </>
+ 
       )}
     </div>
   )
 }
 
-function ManagerRiepilogoWrapper({ db }){
-  const [dateRep, setDateRep] = useState(new Date().toISOString().slice(0,10))
-  return (
-    <div>
-      <div className="row" style={{marginBottom:8}}>
-        <label>Data:</label>
-        <input type="date" className="input" value={dateRep} onChange={e=>setDateRep(e.target.value)} />
-      </div>
-      <RiepilogoAttivita db={db} date={dateRep} />
-    </div>
-  )
-}
+
