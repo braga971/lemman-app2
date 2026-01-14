@@ -17,6 +17,7 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
     return ()=> window.removeEventListener('resize', onResize)
   }, [])
   useEffect(()=>{
+<<<<<<< HEAD
     try{
       if (isMobile && menuOpen){
         const prev = document.body.style.overflow
@@ -33,6 +34,8 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
     }
   }, [isMobile, menuOpen])
   useEffect(()=>{
+=======
+>>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
     if(theme==='dark'){ document.documentElement.setAttribute('data-theme','dark') } else { document.documentElement.removeAttribute('data-theme') }
     localStorage.setItem('theme', theme)
   }, [theme])

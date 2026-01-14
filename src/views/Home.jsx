@@ -77,7 +77,11 @@ export default function Home({ user, profile, db }){
         <h3><span className="icon-chip chip-home" style={{marginRight:6}}><Icon.Home/></span> Benvenuto{profile?.full_name ? `, ${profile.full_name}` : user?.email ? `, ${user.email}` : ''}</h3>
       </div>
       <div className="grid2">
+<<<<<<< HEAD
                 <section className="card section">
+=======
+        <section className="card section">
+>>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
           <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Le mie attività</h3>
 
           {[yesterday, today, tomorrow].map(day => (
@@ -212,6 +216,7 @@ export default function Home({ user, profile, db }){
     </div>
   )
 }
+<<<<<<< HEAD
 
 
 
@@ -220,3 +225,5 @@ export default function Home({ user, profile, db }){
 
 
 
+=======
+>>>>>>> c9c761788eb79852406ce48b4635d6635e17707d
