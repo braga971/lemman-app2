@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import { useAuth } from '../_integration/hooks.js'
 import * as Icon from '../components/Icons.jsx'
@@ -51,6 +51,15 @@ export default function TurniSettimanaliView({ isManager=false }){
       const raw=(data?.payload)||{}
       const norm={}; for(const s of SLOTS){ const v=raw[s.key]; norm[s.key]={users:(v?.users||[]).filter(Boolean)} }
       setValues(norm)
+      // Per i dipendenti: recupera i profili via Edge Function (service role)
+      if (!isManager && name){
+        try{
+          const resp = await supabase.functions.invoke('get-shift-profiles', { body: { site: name, week_start: from } })
+          const profs = (resp?.data?.profiles)||[]
+          if (Array.isArray(profs) && profs.length){ setProfiles(profs) }
+        }catch(_){ /* ignore */ }
+      }
+
       // chi e' assegnato altrove (per questa settimana)
       const { data:others } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from).neq('site', name)
       const set=new Set(); for(const row of (others||[])){ for(const uid of Object.values(row?.payload||{}).flatMap(v=>v?.users||[])){ if(uid) set.add(uid) } }
@@ -60,20 +69,37 @@ export default function TurniSettimanaliView({ isManager=false }){
   useEffect(()=>{ refreshAssignments() }, [activeCantiere, from])
   useEffect(()=>{ setValues({}); setAssignedElsewhere(new Set()) }, [activeCantiere, from])
 
-  // Limita i cantieri visibili al dipendente (solo dove assegnato nella settimana)
+  // Limita i cantieri visibili al dipendente: solo quelli dove Ã¨ assegnato (settimana corrente o prossima)
   useEffect(()=>{ (async()=>{
-    if (isManager || !user || !from || !cantieri.length) return
-    const { data: sch } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from)
-    const mySites = new Set()
-    for (const row of (sch||[])){
-      const users = Object.values(row?.payload||{}).flatMap(v=> v?.users||[])
-      if (users.includes(user.id)) mySites.add(row.site)
-    }
-    const allowedIds = cantieri.filter(c=> mySites.has(c.name)).map(c=> String(c.id))
-    // Se non assegnato, svuota la selezione
-    if (!allowedIds.length){ setActiveCantiere('') }
-    else if (!allowedIds.includes(String(activeCantiere))) { setActiveCantiere(allowedIds[0]) }
+    try{
+      if (isManager || !user || !from || !cantieri.length) return
+      const nextFrom = fmtYMD(addDays(new Date(from), 7))
+      const { data: sch } = await supabase.from('shift_schedules').select('site,payload,week_start').in('week_start', [from, nextFrom])
+      const mySites = new Set()
+      for (const row of (sch||[])){
+        const users = Object.values(row?.payload||{}).flatMap(v=> (v?.users||[]))
+        if (users.includes(user.id)) mySites.add(row.site)
+      }
+      const allowed = cantieri.filter(c=> mySites.has(c.name))
+      if (!allowed.length){ setActiveCantiere('') }
+      else if (!allowed.some(c=> String(c.id)===String(activeCantiere))) { setActiveCantiere(String(allowed[0].id)) }
+      // Nota: non modifichiamo l'elenco cantieri, ci limitiamo a forzare la selezione
+    }catch(_){ /* ignore */ }
   })() }, [isManager, user, from, cantieri])
+
+  // Dipendente: consenti solo settimana corrente o prossima
+  useEffect(()=>{
+    if (isManager) return
+    try{
+      const selectedMonday = weekInputToMonday(weekValue)
+      const currMonday = startOfWeekMonday(new Date())
+      const diffWeeks = Math.round((selectedMonday - currMonday)/(1000*60*60*24*7))
+      if (diffWeeks < 0 || diffWeeks > 1){
+        setWeekValue(weekValueFromDate(new Date()))
+        setOffset(0)
+      }
+    }catch(_){ /* ignore */ }
+  }, [weekValue, isManager])
 
   function buildPayload(vals){ const payload={}; for(const s of SLOTS){ payload[s.key]={users:(vals[s.key]?.users)||[]} } return payload }
   async function save(nextVals){
@@ -94,7 +120,9 @@ export default function TurniSettimanaliView({ isManager=false }){
     setValues(v=>{
       const next={...v};
       for(const s of SLOTS){ const k=s.key; const arr=(next[k]?.users)||[]; next[k]={users:arr.filter(x=>x!==uid)} }
-      next[slot]={users:[...((next[slot]?.users)||[]), uid]}
+      const p = profiles.find(x=>x.id===uid)
+      const label = displayName(p) || uid
+      next[slot]={users:[...((next[slot]?.users)||[]), { id: uid, name: label } ]}
       // auto-save
       save(next)
       return next
@@ -103,7 +131,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   function removeUser(uid){
     setValues(v=>{
       const next={...v}
-      for(const s of SLOTS){ const k=s.key; next[k]={users:((next[k]?.users)||[]).filter(x=>x!==uid)} }
+      for(const s of SLOTS){ const k=s.key; next[k]={users:((next[k]?.users)||[]).filter(x=> (typeof x==='string'? x : (x?.id||'')) !== uid)} }
       save(next)
       return next
     })
@@ -116,11 +144,19 @@ export default function TurniSettimanaliView({ isManager=false }){
   const assignedUids=useMemo(()=>{ const s=new Set(); for(const k of Object.keys(values)){ for(const uid of (values[k]?.users||[])) s.add(uid) } return s }, [values])
   const unassigned=useMemo(()=> (profiles||[]).filter(p=> !assignedUids.has(p.id) && !assignedElsewhere.has(p.id)), [profiles, assignedUids, assignedElsewhere])
   const displayName=p=> p?.full_name||p?.email||p?.id
+  // Helpers to support both string userId and object { id, name }
+  function userId(u){ return typeof u==='string' ? u : (u?.id||'') }
+  function userLabel(u){
+    if (typeof u === 'object' && u && u.name) return u.name
+    const uid = userId(u)
+    const p = profiles.find(x=>x.id===uid)
+    return displayName(p) || uid
+  }
 
   return (
     <div className="page">
       <style>{`
-        /* Aumenta leggibilità in stampa */
+        /* Aumenta leggibilitÃ  in stampa */
         @media print {
           @page { size: A4 landscape; margin: 8mm }
           .print-area { font-size: 12px }
@@ -133,8 +169,10 @@ export default function TurniSettimanaliView({ isManager=false }){
         <span>Settimana:</span>
         <button className={"btn" + (offset===0?' primary':'')} onClick={()=>{ const w=weekValueFromDate(new Date()); setWeekValue(w); setOffset(0) }}>Questa</button>
         <button className={"btn" + (offset===1?' primary':'')} onClick={()=>{ const w=weekValueFromDate(addDays(new Date(),7)); setWeekValue(w); setOffset(0) }}>Prossima</button>
-        <label style={{marginLeft:12}}>Vai a:</label>
-        <input type="week" value={weekValue} onChange={e=>{ setWeekValue(e.target.value); setOffset(0) }} />
+        {isManager && (<>
+          <label style={{marginLeft:12}}>Vai a:</label>
+          <input type="week" value={weekValue} onChange={e=>{ setWeekValue(e.target.value); setOffset(0) }} />
+        </>)}
         <span style={{marginLeft:16}}>Cantiere:</span>
         {isManager ? (
           <div style={{display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
@@ -186,12 +224,12 @@ export default function TurniSettimanaliView({ isManager=false }){
 
         <div className="grid" style={{gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
           {SLOTS.slice(0,2).map(s => (
-            <div key={s.key} className="card" style={{padding:12}} onDrop={(e)=>onDropSlot(e,s.key)} onDragOver={onDragOver}>
+            <div key={s.key} className="card" style={{padding:12}} onDrop={isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={isManager? onDragOver : undefined}>
               <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
               <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
-                {(values[s.key]?.users||[]).map(uid=>{ const p=profiles.find(x=>x.id===uid); return (
-                  <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={displayName(p)||uid}>
-                    {displayName(p)||uid}
+                {(values[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
+                  <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={userLabel(u)}>
+                    {userLabel(u)}
                     {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
                   </span>
                 )})}
@@ -202,12 +240,12 @@ export default function TurniSettimanaliView({ isManager=false }){
 
         <div className="grid" style={{gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginTop:12}}>
           {SLOTS.slice(2,5).map(s => (
-            <div key={s.key} className="card" style={{padding:12}} onDrop={(e)=>onDropSlot(e,s.key)} onDragOver={onDragOver}>
+            <div key={s.key} className="card" style={{padding:12}} onDrop={isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={isManager? onDragOver : undefined}>
               <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
               <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
-                {(values[s.key]?.users||[]).map(uid=>{ const p=profiles.find(x=>x.id===uid); return (
-                  <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={displayName(p)||uid}>
-                    {displayName(p)||uid}
+                {(values[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
+                  <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={userLabel(u)}>
+                    {userLabel(u)}
                     {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
                   </span>
                 )})}
@@ -216,12 +254,12 @@ export default function TurniSettimanaliView({ isManager=false }){
           ))}
         </div>
 
-        <div className="card" style={{padding:12, marginTop:12}} onDrop={(e)=>onDropSlot(e,'GIORNALIERO')} onDragOver={onDragOver}>
+        <div className="card" style={{padding:12, marginTop:12}} onDrop={isManager? (e)=>onDropSlot(e,'GIORNALIERO') : undefined} onDragOver={isManager? onDragOver : undefined}>
           <div style={{fontWeight:700, marginBottom:8}}>GIORNALIERO</div>
           <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
-            {(values['GIORNALIERO']?.users||[]).map(uid=>{ const p=profiles.find(x=>x.id===uid); return (
-              <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={displayName(p)||uid}>
-                {displayName(p)||uid}
+            {(values['GIORNALIERO']?.users||[]).map(u=>{ const uid=userId(u); return (
+              <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={userLabel(u)}>
+                {userLabel(u)}
                 {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
               </span>
             )})}
@@ -231,3 +269,7 @@ export default function TurniSettimanaliView({ isManager=false }){
     </div>
   )
 }
+
+
+
+

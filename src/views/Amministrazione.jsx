@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 
@@ -30,6 +30,14 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
     '3� TURNO': Array.from({length:6}, ()=>({ user_id:'', title:'', file:null, task_id:null })),
   }))
   const [saving, setSaving] = useState(false)
+  // Refs per autosave con stato aggiornato
+  const rowsRef = useRef(rowsByShift)
+  useEffect(()=>{ rowsRef.current = rowsByShift }, [rowsByShift])
+  const cantieriRef = useRef(cantieri)
+  useEffect(()=>{ cantieriRef.current = cantieri }, [cantieri])
+  const cantiereRef = useRef(cantiere)
+  useEffect(()=>{ cantiereRef.current = cantiere }, [cantiere])
+  const autoTimersRef = useRef(new Map())
   function displayShift(s){
     try{
       return String(s)
@@ -56,7 +64,28 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
     }catch(e){ console.error('Caricamento cantieri', e) }
   })() }, [])
 
-  function setRow(shift, i, patch){ setRowsByShift(v=> ({ ...v, [shift]: v[shift].map((r,idx)=> idx===i ? ({...r, ...patch}) : r) })) }
+function setRow(shift, i, patch){
+  setRowsByShift(v=> ({ ...v, [shift]: v[shift].map((r,idx)=> idx===i ? ({...r, ...patch}) : r) }))
+}
+
+function scheduleAutoSave(shift, i){
+  try{
+    const key = `${shift}:${i}`
+    const timers = autoTimersRef.current
+    if (timers.has(key)) clearTimeout(timers.get(key))
+    const t = setTimeout(()=>{
+      const rows = rowsRef.current || {}
+      const row = rows?.[shift]?.[i]
+      const cantieriNow = cantieriRef.current || []
+      const cantiereNow = cantiereRef.current
+      const cName = (cantieriNow.find(c=> String(c.id)===String(cantiereNow))||{}).name || null
+      const hasReq = !!cName && !!row?.user_id && !!String(row?.title||'').trim()
+      if (hasReq){ saveRow(shift, i) }
+      timers.delete(key)
+    }, 600)
+    timers.set(key, t)
+  }catch(_){ /* ignore */ }
+}
   function addRow(shift){ setRowsByShift(v=> ({ ...v, [shift]: [...v[shift], { user_id:'', title:'', file:null, task_id:null }] })) }
   function delRow(shift, i){
     const row = rowsByShift?.[shift]?.[i]
@@ -178,7 +207,7 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
 
   return (
     <div>
-      <h3><Icon.ClipboardCheck style={{marginRight:6}}/> Assegna Attivita</h3>
+      <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Assegna Attività</h3>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
         <label>Data:</label>
         <input type="date" value={data} onChange={e=>setData(e.target.value)} />
@@ -187,7 +216,10 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
           <option value="">- Seleziona -</option>
           {cantieri.map(c=> <option key={c.id} value={String(c.id)}>{c.name}</option>)}
         </select>
-        <div style={{marginLeft:'auto'}}><button className="btn" onClick={()=>window.print()}>Stampa</button></div>
+        <div style={{marginLeft:'auto', display:'flex', gap:8}}>
+          <button className="btn" onClick={()=>window.print()}>Stampa</button>
+          <button className="btn primary" onClick={assegna} disabled={saving}>Assegna tutte</button>
+        </div>
       </div>
       {fallbackCantieri && (
         <div className="alert" style={{margin:'6px 0', background:'#fff7e6'}}>
@@ -206,18 +238,17 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
                 {rowsByShift[shift].map((r,i)=>(
                   <tr key={i} data-blank={!r.user_id && !r.title ? '1':'0'}>
                     <td>
-                      <select className="select" value={r.user_id} onChange={e=>setRow(shift,i,{ user_id:e.target.value })}>
+                      <select className="select" value={r.user_id} onChange={e=>{ setRow(shift,i,{ user_id:e.target.value }); scheduleAutoSave(shift,i) }}>
                         <option value="">-</option>
                         {profiles.map(p=> <option key={p.id} value={p.id}>{p.full_name||p.email}</option>)}
                       </select>
                     </td>
                     <td>
-                      <textarea className="input" rows={2} value={r.title} onChange={e=>setRow(shift,i,{ title:e.target.value })} placeholder="Descrizione Attivita"></textarea>
+                      <textarea className="input" rows={2} value={r.title} onChange={e=>{ setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i) }} placeholder="Descrizione Attivita"></textarea>
                     </td>
                     <td className="no-print m-hide"><input type="file" accept="image/*" onChange={e=>setRow(shift,i,{ file:e.target.files?.[0]||null })} /></td>
                     <td className="no-print">
-                      <button className="btn" onClick={()=>saveRow(shift,i)}>Salva</button>
-                      <button className="btn secondary" style={{marginLeft:6}} onClick={()=>delRow(shift,i)}>{rowsByShift[shift][i]?.task_id ? 'Elimina' : 'Rimuovi'}</button>
+                      <button className="btn secondary" onClick={()=>delRow(shift,i)}>{rowsByShift[shift][i]?.task_id ? 'Elimina' : 'Rimuovi'}</button>
                     </td>
                   </tr>
                 ))}
@@ -228,9 +259,6 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
             </div>
           </div>
         ))}
-        <div className="row no-print" style={{marginTop:10}}>
-          <button className="btn primary" onClick={assegna} disabled={saving}>Assegna tutte</button>
-        </div>
       </div>
     </div>
   )
@@ -249,15 +277,23 @@ export function RiepilogoAttivita({ db, date }){
   }
   return (
     <div>
-      <h3><Icon.BarChart style={{marginRight:6}}/> Riepilogo Attivita per cantiere</h3>
+      <h3><span className="icon-chip chip-dashboard" style={{marginRight:6}}><Icon.BarChart/></span> Riepilogo Attività per cantiere</h3>
       {byCant.length===0 && (<div className="muted" style={{marginTop:8}}>Nessuna Attivita per la data selezionata</div>)}
       {byCant.map(([cant,list])=> (
         <div key={cant} className="card" style={{marginTop:12}}>
           <div style={{fontWeight:700, textAlign:'center'}}>{cant}</div>
-          <table className="table"><thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attivita</th></tr></thead>
+          <table className="table"><thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attivita</th><th>Stato</th></tr></thead>
             <tbody>
               {list.map(r=> (
-                <tr key={r.id}><td>{nameOf(r.user_id)}</td><td>{r.title}</td></tr>
+                <tr key={r.id}>
+                  <td>{nameOf(r.user_id)}</td>
+                  <td>{r.title}</td>
+                  <td>
+                    <span className="badge" style={{background:(r.stato==='done'?'var(--green)':'var(--gray)')}}>
+                      {r.stato || 'todo'}
+                    </span>
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -347,7 +383,7 @@ export default function Amministrazione({ db, profiles, refresh }){
     <div className="container" style={{paddingTop:16}}>
       <div className="grid2">
         <section className="card section">
-          <h3><Icon.FileText style={{marginRight:6}}/> Commesse & Cantieri</h3>
+          <h3><span className="icon-chip chip-report" style={{marginRight:6}}><Icon.FileText/></span> Commesse & Cantieri</h3>
           <div className="grid2">
             <input placeholder="Codice commessa" value={comm.code} onChange={e=>setComm({...comm, code:e.target.value})} />
             <select className="select" value={comm.cantiere} onChange={e=>setComm({...comm, cantiere:e.target.value})}>
@@ -401,7 +437,7 @@ export default function Amministrazione({ db, profiles, refresh }){
         </section>
 
         <section className="card section">
-          <h3><Icon.List style={{marginRight:6}}/> Posizioni di Commessa</h3>
+          <h3><span className="icon-chip chip-utenti" style={{marginRight:6}}><Icon.List/></span> Posizioni di Commessa</h3>
           <select className="select" value={posForm.commessa_id} onChange={e=>setPosForm({...posForm, commessa_id:e.target.value})}>
             <option value="">- Seleziona commessa -</option>
             {(db.commesse||[]).map(c=> (<option key={c.id} value={String(c.id)}>{c.code} - {c.cantiere||'-'}</option>))}
@@ -445,10 +481,5 @@ export default function Amministrazione({ db, profiles, refresh }){
     </div>
   )
 }
-
-
-
-
-
 
 

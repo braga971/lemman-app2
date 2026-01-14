@@ -10,7 +10,7 @@ export default function Bacheca({ db, isManager, refresh }){
   return (
     <div className="container" style={{paddingTop:16, display:'grid', gap:16}}>
       <section className="card section">
-        <h3><Icon.Megaphone style={{marginRight:6}}/> Bacheca</h3>
+        <h3><span className="icon-chip chip-bacheca" style={{marginRight:6}}><Icon.Megaphone/></span> Bacheca</h3>
         {isManager && (
           <div className="row" style={{marginBottom:8}}>
             <input placeholder="Titolo" value={title} onChange={e=>setTitle(e.target.value)} />

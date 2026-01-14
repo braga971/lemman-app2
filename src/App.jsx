@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Navbar from './components/Navbar.jsx'
 import Login from './Login.jsx'
 import { useAuth, useProfile } from './_integration/hooks.js'
@@ -50,7 +50,8 @@ export default function App(){
   const user = useAuth()
   const profile = useProfile(user)
   const [active,setActive]=useState('home')
-  const isManager = profile?.role==='manager'
+  // Considera anche user.user_metadata.role per compatibilità/sync
+  const isManager = (profile?.role==='manager') || (user?.user_metadata?.role==='manager')
 
   // Blocca accesso a profili archiviati
   useEffect(()=>{
@@ -63,7 +64,7 @@ export default function App(){
   const [db,setDb]=useState({ cantieri:[], commesse:[], posizioni:[], tasks:[], bacheca:[], rapportini:[], profiles:[] })
   async function refresh(){
     if (!user) return
-    const [S,C,P,TS,B,R,PR] = await Promise.all([
+    const [S,C,P,TS,B,R,PR,N] = await Promise.all([
       supabase.from('cantieri').select('id,name').order('name',{ascending:true}),
       supabase.from('commesse').select('*').order('created_at',{ascending:false}),
       supabase.from('posizioni').select('*').order('created_at',{ascending:false}),
@@ -71,11 +72,16 @@ export default function App(){
       supabase.from('bacheca').select('*').order('created_at',{ascending:false}),
       supabase.from('rapportini').select('*').order('created_at',{ascending:false}),
       supabase.from('profiles').select('*').order('created_at',{ascending:false}),
+      supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at',{ascending:false}).limit(100),
     ])
     setDb({
       cantieri:S.data||[], commesse:C.data||[], posizioni:P.data||[], tasks:TS.data||[], bacheca:B.data||[],
       rapportini:R.data||[], profiles:PR.data||[]
     })
+    // Inizializza notifiche da DB
+    const rows = N.data||[]
+    setNotifications(rows)
+    setUnread(rows.filter(n=> !n.read_at).length)
   }
 
   useEffect(()=>{ if(user) refresh() }, [user])
@@ -97,12 +103,45 @@ export default function App(){
       .on('postgres_changes', { event:'*', schema:'public', table:'tasks' }, refresh)
       .on('postgres_changes', { event:'*', schema:'public', table:'bacheca' }, refresh)
       .on('postgres_changes', { event:'*', schema:'public', table:'rapportini' }, refresh)
-      .on('postgres_changes', { event:'INSERT', schema:'public', table:'tasks' }, (p)=>{ const n=p.new; if(n?.user_id===user?.id){ pushNotif({ type:'task', message:`Nuova attività assegnata: ${n.title||''}` }) } })
-      .on('postgres_changes', { event:'INSERT', schema:'public', table:'bacheca' }, (p)=>{ const n=p.new; pushNotif({ type:'bacheca', message:`Nuovo annuncio: ${n?.title||''}` }) })
-      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'rapportini' }, (p)=>{ const n=p.new; if(n?.user_id===user?.id && ['approvato','approved'].includes(String(n.stato||'').toLowerCase())){ pushNotif({ type:'rapportino', message:'Un tuo rapportino è stato approvato' }) } })
+      // Notifiche centralizzate: ascolta INSERT su public.notifications
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'notifications' }, (p)=>{ const n=p.new; if(n?.user_id===user?.id){ setNotifications(ns=> [n, ...ns].slice(0,100)); setUnread(u=>u+1); pushToast(n.message) } })
       .subscribe()
     return ()=> supabase.removeChannel(ch)
   }, [user])
+
+    // Cancella le notifiche solo alla CHIUSURA del pannello (non all'apertura)
+  const prevShowNotifsRef = useRef(false)
+  useEffect(()=>{
+    (async()=>{
+      try{
+        if (prevShowNotifsRef.current && !showNotifs && user){
+          // Prova via Edge Function (service role) con fallback a delete diretto
+          let ok = false
+          try{
+            const { data: sess } = await supabase.auth.getSession()
+            const token = sess?.session?.access_token
+            const { error: fnErr } = await supabase.functions.invoke('clear-notifications', { body: {}, headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+            if (!fnErr) ok = true
+          } catch(_){ /* ignore */ }
+          if (!ok){
+            const { error } = await supabase.from('notifications').delete().eq('user_id', user.id)
+            if (!error) ok = true
+            else console.warn('Errore cancellazione notifiche (direct):', error)
+          }
+          if (!ok){
+            pushToast('Impossibile cancellare le notifiche. Contatta supporto.')
+          } else {
+            setNotifications([])
+            setUnread(0)
+          }
+        }
+      }catch(err){
+        console.warn('Eccezione cancellazione notifiche:', err)
+        pushToast('Errore inatteso nella cancellazione notifiche')
+      }
+      prevShowNotifsRef.current = showNotifs
+    })()
+  }, [showNotifs, user])
 
   const [searchOpen,setSearchOpen] = useState(false)
   const [searchQ,setSearchQ] = useState('')
@@ -161,6 +200,7 @@ export default function App(){
     </div>
   )
 }
+
 
 
 

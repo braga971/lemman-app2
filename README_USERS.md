@@ -8,21 +8,22 @@
   Le azioni chiamano le Edge Functions `create-user` e `delete-user`.
 
 ## Edge Functions (Supabase)
-Cartella `functions/` con due esempi pronti:
+Cartella `supabase/functions/` con due funzioni pronte:
 - `create-user/index.ts`
 - `delete-user/index.ts`
 
 ### Variabili richieste (secrets)
 - `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (⚠️ **mai** nel client, solo come secret della Function)
 
 ### Deploy
 Nel progetto Supabase:
 ```
-supabase functions deploy create-user --no-verify-jwt
-supabase functions deploy delete-user --no-verify-jwt
+supabase functions deploy create-user
+supabase functions deploy delete-user
 ```
-> Se vuoi limitare l'accesso, rimuovi `--no-verify-jwt` e invoca le funzioni passando il JWT del manager.
+Entrambe le funzioni richiedono il JWT dell'utente e accettano solo utenti con ruolo `manager`.
 
 ### Invoke dal client
 Le chiamate sono già incluse in `SectionUtenti`:
