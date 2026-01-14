@@ -119,9 +119,22 @@ function scheduleAutoSave(shift, i){
         const monday = fmtLocalYMD(startOfWeekMonday(new Date(data)))
         const { data: sched } = await supabase.from('shift_schedules').select('payload').eq('site', cName).eq('week_start', monday).maybeSingle()
         const payload = sched?.payload || {}
+        const toUid = (u)=>{
+          try{
+            if (!u) return null
+            if (typeof u === 'string'){
+              const s = u.trim()
+              if (s.startsWith('{') && s.includes('"id"')){ try { const o = JSON.parse(s); return o?.id || o?.user_id || null } catch(_) { /* ignore */ } }
+              return s
+            }
+            if (typeof u === 'object') return u.id || u.user_id || null
+            return null
+          }catch(_){ return null }
+        }
+        const isUuid = (s)=> typeof s === 'string' && /^[0-9a-fA-F-]{36}$/.test(s)
         for (const label of SHIFTS){
           const keys = SCHEDULE_KEYS[label] || []
-          const assigned = Array.from(new Set(keys.flatMap(k => (payload?.[k]?.users||[]).filter(Boolean))))
+          const assigned = Array.from(new Set(keys.flatMap(k => (payload?.[k]?.users||[]).map(toUid).filter(isUuid))))
           if (!assigned.length) continue
           const already = new Set(base[label].map(r=>r.user_id).filter(Boolean))
           const missing = assigned.filter(uid=> !already.has(uid))
@@ -154,7 +167,7 @@ function scheduleAutoSave(shift, i){
           if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
         }catch(_){ /* ignore upload errors */ }
       }
-      const payload = { user_id:r.user_id, data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+      const payload = { user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
       if (photo_url) Object.assign(payload, { photo_url, photo_path })
       if (r.task_id){
         const { error } = await supabase.from('tasks').update(payload).eq('id', r.task_id)
@@ -188,7 +201,7 @@ function scheduleAutoSave(shift, i){
               if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
             }catch(_){ /* ignore upload errors */ }
           }
-          const payload = { user_id:r.user_id, data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+          const payload = { user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
           if (photo_url) Object.assign(payload, { photo_url, photo_path })
           if (r.task_id){
             await supabase.from('tasks').update(payload).eq('id', r.task_id)

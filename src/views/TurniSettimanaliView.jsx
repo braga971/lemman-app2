@@ -101,7 +101,17 @@ export default function TurniSettimanaliView({ isManager=false }){
     }catch(_){ /* ignore */ }
   }, [weekValue, isManager])
 
-  function buildPayload(vals){ const payload={}; for(const s of SLOTS){ payload[s.key]={users:(vals[s.key]?.users)||[]} } return payload }
+  const isUuid = (s)=> typeof s==='string' && /^[0-9a-fA-F-]{36}$/.test(s)
+  const userId = (u)=> typeof u==='string' ? u : (u?.id||'')
+  function buildPayload(vals){
+    const payload={}
+    for(const s of SLOTS){
+      const raw = (vals[s.key]?.users)||[]
+      const onlyIds = raw.map(userId).filter(isUuid)
+      payload[s.key] = { users: onlyIds }
+    }
+    return payload
+  }
   async function save(nextVals){
     const vals = nextVals || values
     if(!activeCantiere) return; const name=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name
@@ -141,11 +151,10 @@ export default function TurniSettimanaliView({ isManager=false }){
   function onDragOver(e){ e.preventDefault() }
 
   const cantiereName=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name||''
-  const assignedUids=useMemo(()=>{ const s=new Set(); for(const k of Object.keys(values)){ for(const uid of (values[k]?.users||[])) s.add(uid) } return s }, [values])
+  const assignedUids=useMemo(()=>{ const s=new Set(); for(const k of Object.keys(values)){ for(const u of (values[k]?.users||[])) s.add(userId(u)) } return s }, [values])
   const unassigned=useMemo(()=> (profiles||[]).filter(p=> !assignedUids.has(p.id) && !assignedElsewhere.has(p.id)), [profiles, assignedUids, assignedElsewhere])
   const displayName=p=> p?.full_name||p?.email||p?.id
   // Helpers to support both string userId and object { id, name }
-  function userId(u){ return typeof u==='string' ? u : (u?.id||'') }
   function userLabel(u){
     if (typeof u === 'object' && u && u.name) return u.name
     const uid = userId(u)
