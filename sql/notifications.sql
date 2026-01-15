@@ -15,6 +15,8 @@ create table if not exists public.notifications (
 -- Indexes
 create index if not exists idx_notifications_user_id on public.notifications(user_id);
 create index if not exists idx_notifications_created_at on public.notifications(created_at desc);
+-- Speed up JSONB contains checks for dedup scopes
+create index if not exists idx_notifications_payload on public.notifications using gin (payload);
 
 -- Enable RLS
 alter table public.notifications enable row level security;
@@ -53,4 +55,3 @@ with check (coalesce((auth.jwt() -> 'user_metadata' ->> 'role'), (auth.jwt() ->>
 create policy "notifications_delete_manager"
 on public.notifications for delete to authenticated
 using (coalesce((auth.jwt() -> 'user_metadata' ->> 'role'), (auth.jwt() ->> 'role'), '') = 'manager');
-

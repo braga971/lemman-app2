@@ -129,7 +129,7 @@ export default function UtentiView(){
             <select className="input" value={form.role} onChange={e=>setForm(f=>({...f, role:e.target.value}))}>
               <option value="user">User</option>
               <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
+              
             </select>
           </div>
           <div>
@@ -140,7 +140,7 @@ export default function UtentiView(){
         <div className="table-responsive">
           <table className="table">
             <thead>
-              <tr><th>Email</th><th>Nome</th><th>Ruolo</th><th>Creato</th><th></th></tr>
+              <tr><th>Email</th><th>Nome</th><th>Ruolo</th><th>Creato</th><th>Azioni</th></tr>
             </thead>
             <tbody>
               {rows?.length===0 && !loading && (
@@ -154,14 +154,14 @@ export default function UtentiView(){
                     <select className="input" value={r.role || 'user'} onChange={e=>setRole(r.id, e.target.value)}>
                       <option value="user">User</option>
                       <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
-                      <option value="archived">Archived</option>
+                      
+                      <option value="archived">Licenziato</option>
                     </select>
                   </td>
                   <td>{r.created_at ? new Date(r.created_at).toISOString().slice(0,19).replace('T',' ') : '—'}</td>
                   <td style={{textAlign:'right', display:'flex', gap:6, justifyContent:'flex-end'}}>
                     <button className="btn" onClick={()=>resetPassword(r)} disabled={loading} title="Reimposta password"><Icon.Lock /> Reset</button>
-                    <button className="btn danger" onClick={()=>deleteUser(r)} disabled={loading}><Icon.Trash /> Elimina</button>
+                    
                   </td>
                 </tr>
               ))}
@@ -172,3 +172,4 @@ export default function UtentiView(){
     </div>
   )
 }
+

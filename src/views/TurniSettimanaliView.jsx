@@ -123,7 +123,15 @@ export default function TurniSettimanaliView({ isManager=false }){
     for(const row of (others||[])){ const users=Object.values(row?.payload||{}).flatMap(v=> (v?.users||[])); for(const uid of users){ if(here.has(uid)) conflicts.push(uid) } }
     if(conflicts.length){ alert('Conflitto: utenti gia assegnati altrove: '+Array.from(new Set(conflicts)).join(', ')); return }
     let { error } = await supabase.from('shift_schedules').upsert({ week_start: from, site: name, payload })
-    if(error){ await supabase.from('shift_schedules').delete().eq('site',name).eq('week_start',from); const ins=await supabase.from('shift_schedules').insert({ week_start: from, site: name, payload }); if(ins.error){ alert(ins.error.message); return } }
+    
+    try{
+      const ids = Array.from(new Set(Object.values(payload).flatMap(v=>v.users||[])))
+      if (ids.length){
+        const { data: sess } = await supabase.auth.getSession()
+        const token = sess?.session?.access_token
+        await supabase.functions.invoke('notify-shifts', { body: { site: name, week_start: from, user_ids: ids }, headers: token ? { Authorization: Bearer  } : undefined })
+      }
+    }catch(_){ }
   }
 
   function addUserToSlot(slot,uid){
@@ -278,6 +286,8 @@ export default function TurniSettimanaliView({ isManager=false }){
     </div>
   )
 }
+
+
 
 
 
