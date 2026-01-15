@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as Icon from './Icons.jsx'
 
 export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, notificationsCount=0, onOpenNotifications, onOpenChangePassword }){
   const [menuOpen,setMenuOpen] = useState(false)
   const menuRef = useRef(null)
+  const navRef = useRef(null)
   const [isMobile,setIsMobile] = useState(()=> (typeof window!=='undefined' ? window.innerWidth <= 768 : false))
   const [theme,setTheme] = useState(()=> (localStorage.getItem('theme')||'').toLowerCase()==='dark' ? 'dark' : 'light')
   useEffect(()=>{
@@ -15,6 +17,18 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
     function onResize(){ setIsMobile(window.innerWidth <= 768) }
     window.addEventListener('resize', onResize)
     return ()=> window.removeEventListener('resize', onResize)
+  }, [])
+  // Aggiorna variabile CSS con l'altezza reale della navbar
+  useEffect(()=>{
+    function applyNavH(){
+      try{
+        const h = navRef.current ? navRef.current.getBoundingClientRect().height : 56
+        document.documentElement.style.setProperty('--nav-h', `${Math.ceil(h)}px`)
+      }catch(_){ /* ignore */ }
+    }
+    applyNavH()
+    window.addEventListener('resize', applyNavH)
+    return ()=> window.removeEventListener('resize', applyNavH)
   }, [])
   useEffect(()=>{
     try{
@@ -51,7 +65,7 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
     }
   }
   return (
-    <nav className="nav">
+    <nav className="nav" ref={navRef}>
       <div className="container" style={{display:'flex', alignItems:'center'}}>
         <div style={{marginRight:8, position:'relative'}} ref={menuRef}>
           <button className="tab" onClick={()=>setMenuOpen(v=>!v)} title="Menu" aria-haspopup="true" aria-expanded={menuOpen? 'true':'false'}>
@@ -62,39 +76,42 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
           </button>
           {menuOpen && (
             isMobile ? (
-              <>
-                <div className="drawer-overlay" onClick={()=>setMenuOpen(false)}></div>
-                <div className="drawer-panel open" role="menu">
-                  <div style={{fontWeight:800, padding:'10px 12px'}}>Menu</div>
-                  {tabs.map(t=>{
-                    if (t.manager && !isManager) return null
-                    const isActive = active===t.key
-                    return (
-                      <div key={t.key} role="menuitem">
-                        <button className="btn menu-item" style={{background:'transparent', width:'100%', textAlign:'left', borderRadius:0, padding:'10px 12px', color:'inherit'}} onClick={()=>{ onChange(t.key); setMenuOpen(false) }}>
-                          <span style={{display:'inline-flex', alignItems:'center', gap:10}}>
-                            <span className={`icon-chip ${colorClassFor(t.key)}`}>{t.icon || null}</span>
-                            <span style={{fontWeight:isActive?700:500}}>{t.label}</span>
-                          </span>
-                        </button>
-                      </div>
-                    )
-                  })}
-                  <div style={{height:1, background:'var(--border)', margin:'8px 0'}}></div>
-                  <button className="btn menu-item" style={{background:'transparent', width:'100%', textAlign:'left', borderRadius:0, padding:'10px 12px'}} onClick={()=>{ setMenuOpen(false); onOpenChangePassword && onOpenChangePassword() }}>
-                    <span style={{display:'inline-flex', alignItems:'center', gap:10}}>
-                      <span className="icon-chip chip-utenti"><Icon.Lock/></span>
-                      Cambia password
-                    </span>
-                  </button>
-                  <button className="btn menu-item" style={{background:'transparent', width:'100%', textAlign:'left', borderRadius:0, padding:'10px 12px'}} onClick={()=>{ setMenuOpen(false); onLogout && onLogout() }}>
-                    <span style={{display:'inline-flex', alignItems:'center', gap:10}}>
-                      <span className="icon-chip chip-admin"><Icon.LogOut/></span>
-                      Esci
-                    </span>
-                  </button>
-                </div>
-              </>
+              createPortal(
+                <>
+                  <div className="drawer-overlay" onClick={()=>setMenuOpen(false)}></div>
+                  <div className="drawer-panel open" role="menu">
+                    <div style={{fontWeight:800, padding:'10px 12px'}}>Menu</div>
+                    {tabs.map(t=>{
+                      if (t.manager && !isManager) return null
+                      const isActive = active===t.key
+                      return (
+                        <div key={t.key} role="menuitem">
+                          <button className="btn menu-item" style={{background:'transparent', width:'100%', textAlign:'left', borderRadius:0, padding:'10px 12px', color:'inherit'}} onClick={()=>{ onChange(t.key); setMenuOpen(false) }}>
+                            <span style={{display:'inline-flex', alignItems:'center', gap:10}}>
+                              <span className={`icon-chip ${colorClassFor(t.key)}`}>{t.icon || null}</span>
+                              <span style={{fontWeight:isActive?700:500}}>{t.label}</span>
+                            </span>
+                          </button>
+                        </div>
+                      )
+                    })}
+                    <div style={{height:1, background:'var(--border)', margin:'8px 0'}}></div>
+                    <button className="btn menu-item" style={{background:'transparent', width:'100%', textAlign:'left', borderRadius:0, padding:'10px 12px'}} onClick={()=>{ setMenuOpen(false); onOpenChangePassword && onOpenChangePassword() }}>
+                      <span style={{display:'inline-flex', alignItems:'center', gap:10}}>
+                        <span className="icon-chip chip-utenti"><Icon.Lock/></span>
+                        Cambia password
+                      </span>
+                    </button>
+                    <button className="btn menu-item" style={{background:'transparent', width:'100%', textAlign:'left', borderRadius:0, padding:'10px 12px'}} onClick={()=>{ setMenuOpen(false); onLogout && onLogout() }}>
+                      <span style={{display:'inline-flex', alignItems:'center', gap:10}}>
+                        <span className="icon-chip chip-admin"><Icon.LogOut/></span>
+                        Esci
+                      </span>
+                    </button>
+                  </div>
+                </>,
+                document.body
+              )
             ) : (
               <div className="menu-dropdown" role="menu">
                 {tabs.map(t=>{

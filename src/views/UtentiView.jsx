@@ -127,7 +127,7 @@ export default function UtentiView(){
           <div>
             <label>Ruolo</label>
             <select className="input" value={form.role} onChange={e=>setForm(f=>({...f, role:e.target.value}))}>
-              <option value="user">User</option>
+              <option value="user">Dipendente</option>
               <option value="manager">Manager</option>
               
             </select>
@@ -152,7 +152,7 @@ export default function UtentiView(){
                   <td>{r.full_name || '—'}</td>
                   <td>
                     <select className="input" value={r.role || 'user'} onChange={e=>setRole(r.id, e.target.value)}>
-                      <option value="user">User</option>
+                      <option value="user">Dipendente</option>
                       <option value="manager">Manager</option>
                       
                       <option value="archived">Licenziato</option>
