@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 import imageCompression from 'browser-image-compression'
+import { getSignedUrl } from '../_integration/signedUrl.js'
 
 export default function Rapportini({ user, db, refresh, isManager=false }){
   const [form,setForm]=useState({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null })
@@ -44,19 +45,21 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       return
     }
     let photo_url = null
+    let photo_path = null
     if (form.file){
       const path = `${user.id}/${Date.now()}_${form.file.name}`
       const up = await supabase.storage.from('rapportini-foto').upload(path, form.file, { cacheControl:'3600', upsert:false })
       if (!up.error){
         const { data } = await supabase.storage.from('rapportini-foto').getPublicUrl(path)
         photo_url = data.publicUrl
+        photo_path = path
       }
     }
     const { error } = await supabase.from('rapportini').insert({
       user_id: forUser || user.id, data: form.data, ore: Number(form.ore||0),
       commessa_id: form.commessa_id || null, posizione_id: form.posizione_id || null,
       cantiere: form.cantiere || null, descrizione: form.descrizione || null,
-      photo_url
+      photo_url, photo_path
     })
     if (error) alert(error.message); else { setForm({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null }); refresh() }
   }
@@ -174,7 +177,11 @@ function ManagerRapportiniTable({ db, profiles, refresh }){
                   {posOptions.map(p=>(<option key={p.id} value={String(p.id)}>{p.name}</option>))}
                 </select>
               ) : ((db.posizioni||[]).find(p=>p.id===r.posizione_id)?.name||'-')}</td>
-              <td>{r.photo_url ? <a href={r.photo_url} target="_blank" rel="noreferrer">apri</a> : '-'}</td>
+              <td>{r.photo_path ? (
+                <button className="btn" onClick={async()=>{ const url=await getSignedUrl('rapportini-foto', r.photo_path, 3600); if(url) window.open(url,'_blank','noopener'); }}>
+                  apri
+                </button>
+              ) : (r.photo_url ? <a href={r.photo_url} target="_blank" rel="noreferrer">apri</a> : '-')}</td>
               <td>{isEdit ? (<input type="number" step="0.5" className="input" value={rapDraft?.ore||''} onChange={e=>setRapDraft(v=>({...v, ore:e.target.value}))} />) : (r.ore ?? '-')}</td>
               <td>{isEdit ? (<input className="input" value={rapDraft?.descrizione||''} onChange={e=>setRapDraft(v=>({...v, descrizione:e.target.value}))} />) : (r.descrizione||'-')}</td>
               <td><span className="badge">{r.stato||'-'}</span></td>

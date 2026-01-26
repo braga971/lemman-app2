@@ -36,11 +36,17 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'site, week_start, user_ids required' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
     }
 
-    // Dedup: one notification per user per site+week
+    // Dedup: one notification per user per week (regardless of site)
     for (const uid of Array.from(new Set(user_ids))){
-      const { data: existing } = await supaAdmin.from('notifications').select('id').eq('user_id', uid).contains('payload', { type:'shift_week', site, week_start }).limit(1)
+      const { data: existing } = await supaAdmin
+        .from('notifications')
+        .select('id')
+        .eq('user_id', uid)
+        .contains('payload', { type:'shift_week', week_start })
+        .limit(1)
       if (existing && existing.length) continue
-      await supaAdmin.from('notifications').insert({ user_id: uid, message: `Turni disponibili per ${site} - settimana ${week_start}`, payload: { type:'shift_week', site, week_start } })
+      const message = `Sono disponibili i turni della settimana ${week_start}`
+      await supaAdmin.from('notifications').insert({ user_id: uid, message, payload: { type:'shift_week', week_start, sites:[site] } })
     }
 
     return new Response(JSON.stringify({ ok:true }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } })
@@ -49,4 +55,3 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: String(e?.message || e) }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } })
   }
 })
-

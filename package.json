@@ -11,6 +11,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
     "browser-image-compression": "^2.0.2",
+    "@tanstack/react-query": "^5.56.2",
+    "react-router-dom": "^6.28.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.62.0"

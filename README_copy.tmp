@@ -1,4 +1,4 @@
-# Lemman App (Supabase)
+﻿# Lemman App (Supabase)
 
 ## Setup
 - Install: `npm i`
@@ -8,7 +8,7 @@
 - Avvio: `npm run dev`
 
 ## Ruoli
-- Manager: vede Amministrazione/Dashboard/Report, CRUD globale, assegna attività.
+- Manager: vede Amministrazione/Dashboard/Report, CRUD globale, assegna attivitÃ .
 - User: vede e gestisce solo i propri dati; bacheca in lettura.
 
 ### Promuovi a manager + refresh JWT
@@ -23,11 +23,11 @@ from public.profiles p
 where p.id = u.id;
 ```
 
-Poi fai logout/login nell'app per rigenerare il token con `role=manager`.
+Poi fai logout/login nellâ€™app per rigenerare il token con `role=manager`.
 
-## Sezioni dell'app
+## Sezioni dellâ€™app
 - Home: task utente, bacheca, riepiloghi manager (ieri/oggi/domani).
-- Attività: task personali (toggle done/todo). I manager assegnano attività per cantiere.
+- AttivitÃ : task personali (toggle done/todo). I manager assegnano attivitÃ  per cantiere.
 - Rapportini: invio con foto; storico settimanale.
 - Amministrazione: commesse, posizioni, approvazione rapportini.
 - Bacheca: manager pubblica/elimina; utenti leggono.

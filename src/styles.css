@@ -101,7 +101,7 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 .toast{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:0 8px 20px rgba(0,0,0,0.2); min-width:240px }
 
 /* Search overlay */
-.search-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:40; display:flex; align-items:flex-start; justify-content:center; padding-top:80px }
+.search-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:10001; display:flex; align-items:flex-start; justify-content:center; padding-top:80px }
 .search-panel{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:12px; width:min(720px, 92%); max-height:70vh; overflow:auto }
 .search-panel .item{ padding:10px 12px; border-bottom:1px solid var(--border); cursor:pointer }
 .search-panel .item:hover{ background:rgba(0,0,0,0.04) }

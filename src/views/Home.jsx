@@ -15,7 +15,13 @@ export default function Home({ user, profile, db }){
   const byDay = { [yesterday]:[], [today]:[], [tomorrow]:[] }
   for(const t of myTasks){ if(byDay[t.data]) byDay[t.data].push(t) }
   const viewTitle = (str)=>{
-    try{ const s=String(str||'').replace(/\u00B0/g,'°'); return s.replace(/^1.*TURNO/,'1° TURNO').replace(/^2.*TURNO/,'2° TURNO').replace(/^3.*TURNO/,'3° TURNO') }catch(_){ return String(str||'') }
+    try{
+      const s = String(str||'').replace(/\u00B0/g,'°')
+      return s
+        .replace(/^1.*TURNO/,'1° TURNO')
+        .replace(/^2.*TURNO/,'2° TURNO')
+        .replace(/^3.*TURNO/,'3° TURNO')
+    }catch(_){ return String(str||'') }
   }
   async function toggleTask(t){ const next = t.stato==='done'?'todo':'done'; await supabase.from('tasks').update({ stato: next }).eq('id', t.id) }
   return (
@@ -45,6 +51,7 @@ export default function Home({ user, profile, db }){
                             <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
                               <button className="btn" onClick={()=>toggleTask(t)}>{t.stato==='done' ? '✓' : '○'}</button>
                               <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{viewTitle(t.title)}</span>
+                              <span className="badge" style={{marginLeft:6}}>{t.stato==='done' ? 'fatta' : 'da completare'}</span>
                               {t.photo_url && <a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a>}
                             </li>
                           ))}
@@ -84,4 +91,3 @@ export default function Home({ user, profile, db }){
     </div>
   )
 }
-

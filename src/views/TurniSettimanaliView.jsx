@@ -36,7 +36,8 @@ export default function TurniSettimanaliView({ isManager=false }){
 
   useEffect(()=>{ (async()=>{
     try{
-      const ppl=await supabase.from('profiles').select('id,full_name,email').order('full_name',{ascending:true}); if(!ppl.error) setProfiles(ppl.data||[])
+      const ppl=await supabase.from('profiles').select('id,full_name,email,role').order('full_name',{ascending:true});
+      if(!ppl.error) setProfiles((ppl.data||[]).filter(p=> (p.role||'user') !== 'archived'))
       const res=await supabase.from('cantieri').select('id,name').order('name')
       if(!res.error && (res.data||[]).length){ setCantieri(res.data||[]); if(!activeCantiere) setActiveCantiere(String(res.data[0].id)) }
       else { const alt=await supabase.from('commesse').select('cantiere'); const set=Array.from(new Set((alt.data||[]).map(x=>x.cantiere).filter(Boolean))).map((name,i)=>({id:String(i+1),name})); setCantieri(set); if(!activeCantiere && set.length) setActiveCantiere(String(set[0].id)) }
@@ -49,16 +50,18 @@ export default function TurniSettimanaliView({ isManager=false }){
       const name=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name
       const { data } = await supabase.from('shift_schedules').select('payload').eq('site',name).eq('week_start',from).maybeSingle()
       const raw=(data?.payload)||{}
-      const norm={}; for(const s of SLOTS){ const v=raw[s.key]; norm[s.key]={users:(v?.users||[]).filter(Boolean)} }
-      setValues(norm)
-      // Per i dipendenti: recupera i profili via Edge Function (service role)
+      // Per i dipendenti: prima prova a recuperare i profili completi via Edge Function
+      let currentProfiles = profiles
       if (!isManager && name){
         try{
           const resp = await supabase.functions.invoke('get-shift-profiles', { body: { site: name, week_start: from } })
           const profs = (resp?.data?.profiles)||[]
-          if (Array.isArray(profs) && profs.length){ setProfiles(profs) }
+          if (Array.isArray(profs) && profs.length){ currentProfiles = profs; setProfiles(profs.filter(p=> (p.role||'user')!=='archived')) }
         }catch(_){ /* ignore */ }
       }
+      const allowed = new Set((currentProfiles||[]).filter(p=> (p.role||'user')!=='archived').map(p=>p.id))
+      const norm={}; for(const s of SLOTS){ const v=raw[s.key]; const arr=(v?.users||[]).filter(Boolean); norm[s.key]={users: arr.filter(u=> allowed.size? allowed.has(typeof u==='string'? u : (u?.id||'')) : true)} }
+      setValues(norm)
 
       // chi e' assegnato altrove (per questa settimana)
       const { data:others } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from).neq('site', name)
@@ -69,7 +72,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   useEffect(()=>{ refreshAssignments() }, [activeCantiere, from])
   useEffect(()=>{ setValues({}); setAssignedElsewhere(new Set()) }, [activeCantiere, from])
 
-  // Limita i cantieri visibili al dipendente: solo quelli dove Ã¨ assegnato (settimana corrente o prossima)
+  // Limita i cantieri visibili al dipendente: solo quelli dove ÃƒÂ¨ assegnato (settimana corrente o prossima)
   useEffect(()=>{ (async()=>{
     try{
       if (isManager || !user || !from || !cantieri.length) return
@@ -112,24 +115,35 @@ export default function TurniSettimanaliView({ isManager=false }){
     }
     return payload
   }
-  async function save(nextVals){
+  async function save(nextVals, changedUserIds = []){
     const vals = nextVals || values
     if(!activeCantiere) return; const name=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name
     if(!name){ alert('Seleziona un cantiere valido'); return }
     const payload = buildPayload(vals)
+    // Recupera assegnazioni precedenti per notificare solo la PRIMA assegnazione settimanale per utente
+    let beforeUsers = new Set()
+    try{
+      const { data: existing } = await supabase.from('shift_schedules').select('payload').eq('site', name).eq('week_start', from).maybeSingle()
+      beforeUsers = new Set(Object.values(existing?.payload||{}).flatMap(v=> (v?.users||[])))
+    }catch(_){ /* ignore */ }
     // unicita' settimanale tra cantieri
     const { data:others } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from).neq('site', name)
     const here=new Set(Object.values(payload).flatMap(v=>v.users||[])); const conflicts=[]
     for(const row of (others||[])){ const users=Object.values(row?.payload||{}).flatMap(v=> (v?.users||[])); for(const uid of users){ if(here.has(uid)) conflicts.push(uid) } }
     if(conflicts.length){ alert('Conflitto: utenti gia assegnati altrove: '+Array.from(new Set(conflicts)).join(', ')); return }
-    let { error } = await supabase.from('shift_schedules').upsert({ week_start: from, site: name, payload })
+    let { error } = await supabase.from('shift_schedules').upsert(
+      { week_start: from, site: name, payload },
+      { onConflict: 'site,week_start' }
+    )
     
     try{
-      const ids = Array.from(new Set(Object.values(payload).flatMap(v=>v.users||[])))
-      if (ids.length){
+      // Calcola gli utenti da notificare: assegnati adesso ma NON presenti prima
+      const afterUsers = new Set(Object.values(payload||{}).flatMap(v=> (v?.users||[])))
+      const toNotify = Array.from(afterUsers).filter(uid => uid && !beforeUsers.has(uid))
+      if (toNotify.length){
         const { data: sess } = await supabase.auth.getSession()
         const token = sess?.session?.access_token
-        await supabase.functions.invoke('notify-shifts', { body: { site: name, week_start: from, user_ids: ids }, headers: token ? { Authorization: Bearer  } : undefined })
+        await supabase.functions.invoke('notify-shifts', { body: { site: name, week_start: from, user_ids: toNotify }, headers: token ? { Authorization: `Bearer ${token}` } : undefined })
       }
     }catch(_){ }
   }
@@ -142,7 +156,7 @@ export default function TurniSettimanaliView({ isManager=false }){
       const label = displayName(p) || uid
       next[slot]={users:[...((next[slot]?.users)||[]), { id: uid, name: label } ]}
       // auto-save
-      save(next)
+      save(next, [uid])
       return next
     })
   }
@@ -150,7 +164,7 @@ export default function TurniSettimanaliView({ isManager=false }){
     setValues(v=>{
       const next={...v}
       for(const s of SLOTS){ const k=s.key; next[k]={users:((next[k]?.users)||[]).filter(x=> (typeof x==='string'? x : (x?.id||'')) !== uid)} }
-      save(next)
+      save(next, [uid])
       return next
     })
   }
@@ -173,7 +187,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   return (
     <div className="page">
       <style>{`
-        /* Aumenta leggibilit� in stampa */
+        /* Aumenta leggibilità in stampa */
         @media print {
           @page { size: A4 landscape; margin: 8mm }
           .print-area { font-size: 12px }

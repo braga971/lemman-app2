@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 import { AssegnaAttivitaPerCantiere } from './Amministrazione.jsx'
+import { getSignedUrl } from '../_integration/signedUrl.js'
 
 export default function Attivita({ user, db, refresh, isManager=false }){
   async function deletePhoto(t){
@@ -13,11 +14,27 @@ export default function Attivita({ user, db, refresh, isManager=false }){
       refresh()
     }catch(err){
       console.error('deletePhoto error', err)
-      alert('Errore durante l\'eliminazione della foto')
+      alert("Errore durante l'eliminazione della foto")
     }
   }
 
   const my = (db.tasks||[]).filter(t=>t.user_id===user.id && t.stato!=='done').sort((a,b)=>a.data.localeCompare(b.data))
+  const [signed, setSigned] = useState({})
+  useEffect(()=>{
+    (async()=>{
+      const entries = await Promise.all(my.map(async t=>{
+        if (t.photo_path){
+          const url = await getSignedUrl('tasks-temp', t.photo_path, 3600)
+          return [t.id, url]
+        }
+        return [t.id, t.photo_url || null]
+      }))
+      const map = {}
+      for (const [id, url] of entries) map[id] = url
+      setSigned(map)
+    })()
+  }, [my.map(t=>t.id).join('|'), my.map(t=>t.photo_path||'').join('|')])
+
   async function toggle(t){ await supabase.from('tasks').update({ stato: t.stato==='done'?'todo':'done' }).eq('id', t.id); refresh() }
   return (
     <div className="container" style={{paddingTop:16}}>
@@ -30,8 +47,12 @@ export default function Attivita({ user, db, refresh, isManager=false }){
               <tr key={t.id}>
                 <td>{t.data}</td>
                 <td>{t.title}</td>
-                <td>{t.photo_url ? (<><a href={t.photo_url} target="_blank" rel="noreferrer">apri</a> <button className="btn danger" style={{marginLeft:8}} onClick={()=>deletePhoto(t)}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Elimina foto</span></button></>) : '—'}</td>
-                <td><span className="badge" style={{background:t.stato==='done'?'var(--green)':'var(--gray)'}}>{t.stato||'Da fare'}</span></td>
+                <td>{(signed[t.id]) ? (<><a href={signed[t.id]} target="_blank" rel="noreferrer">apri</a> <button className="btn danger" style={{marginLeft:8}} onClick={()=>deletePhoto(t)}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Elimina foto</span></button></>) : '—'}</td>
+                <td>
+                  <span className="badge">
+                    {t.stato==='done' ? 'fatta' : 'da completare'}
+                  </span>
+                </td>
                 <td><button className="btn" onClick={()=>toggle(t)}>{t.stato==='done'?'Segna da fare':'Completa'}</button></td>
               </tr>
             ))}
@@ -48,7 +69,3 @@ export default function Attivita({ user, db, refresh, isManager=false }){
     </div>
   )
 }
-
-
-
-

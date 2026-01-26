@@ -14,3 +14,4 @@
 4) Frontend
 - La UI salva `photo_path` e richiede URL firmati via funzione `get-signed-url` per mostrare le foto.
   Le foto vecchie con `photo_url` continueranno a funzionare finché il bucket sarà pubblico.
+
