@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
+import { getSignedUrl } from '../_integration/signedUrl.js'
 import * as Icon from '../components/Icons.jsx'
 
 function startOfWeekMonday(d){ const dt=new Date(d); const day=dt.getDay()||7; const monday=new Date(dt); monday.setDate(dt.getDate()-(day-1)); monday.setHours(0,0,0,0); return monday }
@@ -30,6 +31,7 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
     return obj
   })
   const [saving, setSaving] = useState(false)
+  const [taskPhotos, setTaskPhotos] = useState({})
   // Refs per autosave con stato aggiornato
   const rowsRef = useRef(rowsByShift)
   useEffect(()=>{ rowsRef.current = rowsByShift }, [rowsByShift])
@@ -102,7 +104,7 @@ function scheduleAutoSave(shift, i){
       if (!cName || !data) return
       const { data: tasks } = await supabase
         .from('tasks')
-        .select('id,user_id,title,data,cantiere,created_at')
+        .select('id,user_id,title,data,cantiere,created_at,photo_url,photo_path')
         .eq('data', data)
         .eq('cantiere', cName)
         .order('created_at', { ascending:true })
@@ -115,6 +117,20 @@ function scheduleAutoSave(shift, i){
         const shift = SHIFTS.find(s => displayShift(s) === normalized) || SHIFTS[0]
         base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
       }
+      // Prepara URL foto per i task esistenti
+      try{
+        const entries = await Promise.all((tasks||[]).map(async t=>{
+          try{
+            if (t.photo_path){
+              const url = await getSignedUrl('tasks-temp', t.photo_path, 3600)
+              return [t.id, url]
+            }
+            return [t.id, t.photo_url || null]
+          }catch(_){ return [t.id, null] }
+        }))
+        const photoMap = {}; for (const [id,url] of entries) photoMap[id] = url
+        setTaskPhotos(photoMap)
+      }catch(_){ /* ignore */ }
       // Prefill dai turni settimanali
       try{
         const monday = fmtLocalYMD(startOfWeekMonday(new Date(data)))
@@ -153,9 +169,9 @@ function scheduleAutoSave(shift, i){
     }catch(_){ /* ignore */ }
   })() }, [data, cantiere, cantieri])
 
-  async function saveRow(shift, i){
+  async function saveRow(shift, i, rOverride=null){
     try{
-      const r = rowsByShift[shift][i]
+      const r = rOverride || rowsByShift[shift][i]
       const cName = (cantieri.find(c=> String(c.id)===String(cantiere))||{}).name || null
       if (!cName){ alert('Seleziona un cantiere'); return }
       if (!r.user_id || !String(r.title||'').trim()){ alert('Seleziona dipendente e descrizione'); return }
@@ -169,7 +185,14 @@ function scheduleAutoSave(shift, i){
         }catch(_){ /* ignore upload errors */ }
       }
       const payload = { user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
-      if (photo_url) Object.assign(payload, { photo_url, photo_path })
+      if (photo_url){
+        // Imposta scadenza a giorno successivo alle 00:00 locali della data attività
+        try{
+          const expBase = new Date(`${data}T00:00:00`)
+          expBase.setDate(expBase.getDate() + 1)
+          Object.assign(payload, { photo_url, photo_path, photo_expires_at: expBase.toISOString() })
+        }catch(_){ Object.assign(payload, { photo_url, photo_path }) }
+      }
       if (r.task_id){
         const { error } = await supabase.from('tasks').update(payload).eq('id', r.task_id)
         if (error) return alert(error.message)
@@ -203,7 +226,13 @@ function scheduleAutoSave(shift, i){
             }catch(_){ /* ignore upload errors */ }
           }
           const payload = { user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
-          if (photo_url) Object.assign(payload, { photo_url, photo_path })
+          if (photo_url){
+            try{
+              const expBase = new Date(`${data}T00:00:00`)
+              expBase.setDate(expBase.getDate() + 1)
+              Object.assign(payload, { photo_url, photo_path, photo_expires_at: expBase.toISOString() })
+            }catch(_){ Object.assign(payload, { photo_url, photo_path }) }
+          }
           if (r.task_id){
             await supabase.from('tasks').update(payload).eq('id', r.task_id)
           } else {
@@ -260,7 +289,12 @@ function scheduleAutoSave(shift, i){
                     <td>
                       <textarea className="input" rows={2} value={r.title} onChange={e=>{ setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i) }} placeholder="Descrizione Attività"></textarea>
                     </td>
-                    <td className="no-print m-hide"><input type="file" accept="image/*" onChange={e=>setRow(shift,i,{ file:e.target.files?.[0]||null })} /></td>
+                    <td className="no-print m-hide">
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <input type="file" accept="image/*" onChange={e=>{ const f = e.target.files?.[0]||null; const next = { ...(rowsByShift[shift][i]||{}), file:f }; setRow(shift,i,{ file:f }); if (f && cantiereName && next.user_id && String(next.title||'').trim()){ saveRow(shift,i,next) } else { scheduleAutoSave(shift,i) } }} />
+                        {r.task_id && taskPhotos[r.task_id] ? (<a className="btn" href={taskPhotos[r.task_id]} target="_blank" rel="noreferrer">apri</a>) : null}
+                      </div>
+                    </td>
                     <td className="no-print">
                       <button className="btn secondary" onClick={()=>delRow(shift,i)}>{rowsByShift[shift][i]?.task_id ? 'Elimina' : 'Rimuovi'}</button>
                     </td>
@@ -304,7 +338,7 @@ export function RiepilogoAttivita({ db, date }){
                   <td>{r.title}</td>
                   <td>
                     <span className="badge" style={{background:(r.stato==='done'?'var(--green)':'var(--gray)')}}>
-                      {r.stato || 'todo'}
+                      {r.stato==='done' ? 'completato' : 'da completare'}
                     </span>
                   </td>
                 </tr>

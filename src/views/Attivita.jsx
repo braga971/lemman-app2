@@ -7,15 +7,23 @@ import { getSignedUrl } from '../_integration/signedUrl.js'
 export default function Attivita({ user, db, refresh, isManager=false }){
   async function deletePhoto(t){
     try{
-      if (t.photo_path){
-        await supabase.storage.from('tasks-temp').remove([t.photo_path])
-      }
-      await supabase.from('tasks').update({ photo_url:null, photo_path:null, photo_expires_at:null }).eq('id', t.id)
+      const { data, error } = await supabase.functions.invoke('delete-activity-photo', { body: { taskId: t.id } })
+      if (error) throw error
+      if (!data?.ok) throw new Error('Eliminazione non riuscita')
       refresh()
     }catch(err){
       console.error('deletePhoto error', err)
       alert("Errore durante l'eliminazione della foto")
     }
+  }
+
+  function viewAndAutoDelete(t, url){
+    try{
+      if (!url){ alert('Foto non disponibile'); return }
+      // Apri immediatamente per evitare blocco popup, poi cancella
+      window.open(url, '_blank', 'noopener')
+      setTimeout(()=>{ deletePhoto(t) }, 1500)
+    }catch(err){ console.error('viewAndAutoDelete error', err); alert('Impossibile aprire la foto') }
   }
 
   const my = (db.tasks||[]).filter(t=>t.user_id===user.id && t.stato!=='done').sort((a,b)=>a.data.localeCompare(b.data))
@@ -35,6 +43,19 @@ export default function Attivita({ user, db, refresh, isManager=false }){
     })()
   }, [my.map(t=>t.id).join('|'), my.map(t=>t.photo_path||'').join('|')])
 
+  // Auto-cancellazione il giorno successivo se non vista
+  useEffect(()=>{
+    (async()=>{
+      const now = Date.now()
+      for (const t of my){
+        const exp = t.photo_expires_at ? Date.parse(t.photo_expires_at) : null
+        if (t.photo_path && exp && now >= exp){
+          try{ await deletePhoto(t) } catch(_){ /* ignore */ }
+        }
+      }
+    })()
+  }, [my.map(t=>`${t.id}:${t.photo_path||''}:${t.photo_expires_at||''}`).join('|')])
+
   async function toggle(t){ await supabase.from('tasks').update({ stato: t.stato==='done'?'todo':'done' }).eq('id', t.id); refresh() }
   return (
     <div className="container" style={{paddingTop:16}}>
@@ -47,7 +68,9 @@ export default function Attivita({ user, db, refresh, isManager=false }){
               <tr key={t.id}>
                 <td>{t.data}</td>
                 <td>{t.title}</td>
-                <td>{(signed[t.id]) ? (<><a href={signed[t.id]} target="_blank" rel="noreferrer">apri</a> <button className="btn danger" style={{marginLeft:8}} onClick={()=>deletePhoto(t)}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg> Elimina foto</span></button></>) : '—'}</td>
+                <td>{(signed[t.id]) ? (
+                  <button className="btn" onClick={()=>viewAndAutoDelete(t, signed[t.id])}>apri</button>
+                ) : '—'}</td>
                 <td>
                   <span className="badge">
                     {t.stato==='done' ? 'fatta' : 'da completare'}

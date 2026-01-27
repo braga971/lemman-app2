@@ -130,6 +130,24 @@ function ManagerRapportiniTable({ db, profiles, refresh }){
   const [hiddenApproved, setHiddenApproved] = useState(()=> new Set())
   const [editingRapId, setEditingRapId] = useState(null)
   const [rapDraft, setRapDraft] = useState(null)
+  const [signedMap, setSignedMap] = useState({})
+
+  useEffect(()=>{
+    (async()=>{
+      const list = (db.rapportini||[])
+        .filter(r=> r.stato!=='approvato' && r.stato!=='approved' && !!r.photo_path && !hiddenApproved.has(r.id))
+        .slice(0,50)
+      const entries = await Promise.all(list.map(async r=>{
+        try{ const url = await getSignedUrl('rapportini-foto', r.photo_path, 3600); return [r.id, url] } catch(_){ return [r.id, null] }
+      }))
+      const map = {}
+      for (const [id, url] of entries) map[id] = url
+      setSignedMap(map)
+    })()
+  }, [
+    (db.rapportini||[]).filter(r=> r.stato!=='approvato' && r.stato!=='approved').map(r=>`${r.id}:${r.photo_path||''}`).join('|'),
+    hiddenApproved.size
+  ])
 
   async function setStato(r, stato){
     const { error } = await supabase.from('rapportini').update({ stato }).eq('id', r.id)
@@ -177,11 +195,21 @@ function ManagerRapportiniTable({ db, profiles, refresh }){
                   {posOptions.map(p=>(<option key={p.id} value={String(p.id)}>{p.name}</option>))}
                 </select>
               ) : ((db.posizioni||[]).find(p=>p.id===r.posizione_id)?.name||'-')}</td>
-              <td>{r.photo_path ? (
-                <button className="btn" onClick={async()=>{ const url=await getSignedUrl('rapportini-foto', r.photo_path, 3600); if(url) window.open(url,'_blank','noopener'); }}>
+              <td>{(r.photo_url) ? (
+                <a href={r.photo_url} target="_blank" rel="noreferrer">apri</a>
+              ) : (r.photo_path ? (
+                <button className="btn" onClick={async()=>{
+                  const pre = signedMap[r.id] || null
+                  if (pre){ window.open(pre, '_blank', 'noopener') ; return }
+                  const w = window.open('', '_blank', 'noopener')
+                  try{
+                    const url = await getSignedUrl('rapportini-foto', r.photo_path, 3600)
+                    if (url && w) w.location.href = url; else try{ w && w.close() }catch(_){ /* ignore */ }
+                  }catch(_e){ try{ w && w.close() }catch(__){} }
+                }}>
                   apri
                 </button>
-              ) : (r.photo_url ? <a href={r.photo_url} target="_blank" rel="noreferrer">apri</a> : '-')}</td>
+              ) : '-')}</td>
               <td>{isEdit ? (<input type="number" step="0.5" className="input" value={rapDraft?.ore||''} onChange={e=>setRapDraft(v=>({...v, ore:e.target.value}))} />) : (r.ore ?? '-')}</td>
               <td>{isEdit ? (<input className="input" value={rapDraft?.descrizione||''} onChange={e=>setRapDraft(v=>({...v, descrizione:e.target.value}))} />) : (r.descrizione||'-')}</td>
               <td><span className="badge">{r.stato||'-'}</span></td>
