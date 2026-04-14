@@ -94,10 +94,9 @@ export default function App(){
       { queryKey:['bacheca'], queryFn: async()=> (await supabase.from('bacheca').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['rapportini'], queryFn: async()=> (await supabase.from('rapportini').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['profiles'], queryFn: async()=> (await supabase.from('profiles').select('*').order('created_at', {ascending:false})).data||[], enabled },
-      { queryKey:['notifications', user?.id], queryFn: async()=> (await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at',{ascending:false}).limit(100)).data||[], enabled },
     ]
   })
-  const [qCantieri,qCommesse,qPosizioni,qTasks,qBacheca,qRapportini,qProfiles,qNotifications] = results
+  const [qCantieri,qCommesse,qPosizioni,qTasks,qBacheca,qRapportini,qProfiles] = results
   const db = {
     cantieri: qCantieri?.data||[],
     commesse: qCommesse?.data||[],
@@ -117,20 +116,8 @@ export default function App(){
 
   const [toasts,setToasts] = useState([])
   function pushToast(msg){ const id = Date.now()+Math.random(); setToasts(t=> [...t, { id, msg }]); setTimeout(()=> setToasts(t=> t.filter(x=>x.id!==id)), 4500) }
-  const [notifications,setNotifications] = useState([])
-  const [unread,setUnread] = useState(0)
-  function pushNotif(n){ setNotifications(ns=> [n, ...ns].slice(0,100)); setUnread(u=>u+1); pushToast(n.message) }
 
-  // Initialize notifications from query
-  useEffect(()=>{
-    if (Array.isArray(qNotifications?.data)){
-      setNotifications(qNotifications.data)
-      setUnread((qNotifications.data||[]).filter(n=> !n.read_at).length)
-    }
-  }, [qNotifications?.data])
-
-  const [showNotifs,setShowNotifs] = useState(false)
-  const notifPanelRef = useRef(null)
+  // Notifiche rimosse
   const [showChangePwd,setShowChangePwd] = useState(false)
 
   // Realtime subscriptions -> invalidate specific queries
@@ -143,57 +130,13 @@ export default function App(){
       .on('postgres_changes', { event:'*', schema:'public', table:'tasks' }, ()=> queryClient.invalidateQueries({ queryKey:['tasks'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'bacheca' }, ()=> queryClient.invalidateQueries({ queryKey:['bacheca'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'rapportini' }, ()=> queryClient.invalidateQueries({ queryKey:['rapportini'] }))
-      .on('postgres_changes', { event:'INSERT', schema:'public', table:'notifications' }, (payload)=>{
-        const row = payload?.new
-        if (row && row.user_id === user.id){ pushNotif(row); queryClient.invalidateQueries({ queryKey:['notifications', user.id] }) }
-      })
       .subscribe()
     return ()=>{ try{ supabase.removeChannel(ch) }catch(_){ /* ignore */ } }
   }, [user])
 
-  // Cancella notifiche quando l'overlay viene CHIUSO (non all'apertura)
-  const prevShowNotifsRef = useRef(false)
-  useEffect(()=>{
-    (async()=>{
-      try{
-        if (user && prevShowNotifsRef.current === true && showNotifs === false){
-          let ok=false
-          try{
-            const { data, error } = await supabase.functions.invoke('clear-notifications')
-            if (!error && data?.ok) ok=true
-          }catch(_){ /* ignore */ }
-          if (!ok){
-            const { error } = await supabase.from('notifications').delete().eq('user_id', user.id)
-            if (!error) ok = true
-            else console.warn('Errore cancellazione notifiche (direct):', error)
-          }
-          if (!ok){
-            pushToast('Impossibile cancellare le notifiche. Contatta supporto.')
-          } else {
-            setNotifications([])
-            setUnread(0)
-            queryClient.invalidateQueries({ queryKey:['notifications', user.id] })
-          }
-        }
-      }catch(err){
-        console.warn('Eccezione cancellazione notifiche:', err)
-        pushToast('Errore inatteso nella cancellazione notifiche')
-      }
-      prevShowNotifsRef.current = showNotifs
-    })()
-  }, [showNotifs, user])
+  // Notifiche rimosse: nessuna cancellazione o overlay
 
-  // Portare in primo piano e focus al pannello notifiche; blocca lo scroll del body quando aperto
-  useEffect(()=>{
-    if (showNotifs){
-      try { document.body.style.overflow = 'hidden' } catch(_e){}
-      // Ritarda al frame successivo per essere sicuri che il nodo sia montato
-      setTimeout(()=>{ try { notifPanelRef.current?.focus() } catch(_e){} }, 0)
-    } else {
-      try { document.body.style.overflow = '' } catch(_e){}
-    }
-    return ()=>{ try { document.body.style.overflow = '' } catch(_e){} }
-  }, [showNotifs])
+  // Pannello notifiche rimosso: nessuna gestione overlay
 
   const [searchOpen,setSearchOpen] = useState(false)
   const [searchQ,setSearchQ] = useState('')
@@ -223,27 +166,11 @@ export default function App(){
         onLogout={()=>supabase.auth.signOut()}
         isManager={isManager}
         onSearch={onSearch}
-        notificationsCount={unread}
-        onOpenNotifications={()=>setShowNotifs(v=>!v)}
         onOpenChangePassword={()=>setShowChangePwd(true)}
       />
       <div className='toast-container'>{toasts.map(t=> <div key={t.id} className='toast'>{t.msg}</div>)}</div>
       <ChangePasswordModal isOpen={showChangePwd} onClose={()=>setShowChangePwd(false)} user={user} onSuccess={msg=>pushToast(msg)} />
-      {showNotifs && (
-        <div className='search-overlay' onClick={()=>setShowNotifs(false)}>
-          <div
-            className='search-panel'
-            role='dialog'
-            aria-modal='true'
-            tabIndex={-1}
-            ref={notifPanelRef}
-            onClick={e=>e.stopPropagation()}
-          >
-            <div style={{padding:12,fontWeight:700}}>Notifiche</div>
-            {notifications.length? notifications.map((n,i)=> <div key={i} className='item'>{n.message}</div>) : <div style={{padding:12}}>Nessuna notifica</div>}
-          </div>
-        </div>
-      )}
+      {/* Pannello notifiche rimosso */}
       {searchOpen && (
         <div className='search-overlay' onClick={()=>setSearchOpen(false)}>
           <div className='search-panel' onClick={e=>e.stopPropagation()}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../_integration/supabaseClient.js'
 import { useAuth } from '../_integration/hooks.js'
 import * as Icon from '../components/Icons.jsx'
@@ -31,6 +31,8 @@ export default function TurniSettimanaliView({ isManager=false }){
   const [loading,setLoading]=useState(false)
   const [assignedElsewhere,setAssignedElsewhere]=useState(new Set())
   const [weekValue,setWeekValue]=useState(()=>{ const now=new Date(); const monday=startOfWeekMonday(now); const jan4=new Date(now.getFullYear(),0,4); const firstMonday=startOfWeekMonday(jan4); const diffDays=Math.round((monday-firstMonday)/(1000*60*60*24)); const isoWeek=1+Math.floor(diffDays/7); return `${monday.getFullYear()}-W${String(isoWeek).padStart(2,'0')}` })
+  // Evita che un refresh asincrono sovrascriva modifiche locali appena fatte
+  const loadSeqRef = useRef(0)
 
   const { from, to } = useMemo(()=>{ const base=startOfWeekMonday(new Date()); const start = offset===0 && weekValue ? weekInputToMonday(weekValue) : addDays(base, offset*7); const end=addDays(start,6); return { from:fmtYMD(start), to:fmtYMD(end) } }, [offset, weekValue])
 
@@ -46,6 +48,7 @@ export default function TurniSettimanaliView({ isManager=false }){
 
   async function refreshAssignments(){
     if(!activeCantiere) return; setLoading(true)
+    const seq = ++loadSeqRef.current
     try{
       const name=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name
       const { data } = await supabase.from('shift_schedules').select('payload').eq('site',name).eq('week_start',from).maybeSingle()
@@ -61,7 +64,8 @@ export default function TurniSettimanaliView({ isManager=false }){
       }
       const allowed = new Set((currentProfiles||[]).filter(p=> (p.role||'user')!=='archived').map(p=>p.id))
       const norm={}; for(const s of SLOTS){ const v=raw[s.key]; const arr=(v?.users||[]).filter(Boolean); norm[s.key]={users: arr.filter(u=> allowed.size? allowed.has(typeof u==='string'? u : (u?.id||'')) : true)} }
-      setValues(norm)
+      // Applica solo se questo refresh è ancora l'ultimo richiesto
+      if (seq === loadSeqRef.current) setValues(norm)
 
       // chi e' assegnato altrove (per questa settimana)
       const { data:others } = await supabase.from('shift_schedules').select('site,payload').eq('week_start', from).neq('site', name)
@@ -131,21 +135,18 @@ export default function TurniSettimanaliView({ isManager=false }){
     const here=new Set(Object.values(payload).flatMap(v=>v.users||[])); const conflicts=[]
     for(const row of (others||[])){ const users=Object.values(row?.payload||{}).flatMap(v=> (v?.users||[])); for(const uid of users){ if(here.has(uid)) conflicts.push(uid) } }
     if(conflicts.length){ alert('Conflitto: utenti gia assegnati altrove: '+Array.from(new Set(conflicts)).join(', ')); return }
-    let { error } = await supabase.from('shift_schedules').upsert(
+    const { error } = await supabase.from('shift_schedules').upsert(
       { week_start: from, site: name, payload },
       { onConflict: 'site,week_start' }
     )
-    
-    try{
-      // Calcola gli utenti da notificare: assegnati adesso ma NON presenti prima
-      const afterUsers = new Set(Object.values(payload||{}).flatMap(v=> (v?.users||[])))
-      const toNotify = Array.from(afterUsers).filter(uid => uid && !beforeUsers.has(uid))
-      if (toNotify.length){
-        const { data: sess } = await supabase.auth.getSession()
-        const token = sess?.session?.access_token
-        await supabase.functions.invoke('notify-shifts', { body: { site: name, week_start: from, user_ids: toNotify }, headers: token ? { Authorization: `Bearer ${token}` } : undefined })
-      }
-    }catch(_){ }
+    if (error){
+      console.error('Errore salvataggio turni', error)
+      alert('Errore durante il salvataggio dei turni: ' + (error?.message||''))
+      return
+    }
+    // Allinea lo stato locale con il DB per evitare rollback visivi da refresh in-flight
+    await refreshAssignments()
+    // Notifiche disabilitate: niente invio
   }
 
   function addUserToSlot(slot,uid){

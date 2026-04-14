@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import * as Icon from './Icons.jsx'
 
-export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, notificationsCount=0, onOpenNotifications, onOpenChangePassword }){
+export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, onOpenChangePassword }){
   const [menuOpen,setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const navRef = useRef(null)
@@ -162,10 +162,7 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
           <div className="m-hide" style={{position:'relative'}}>
             <input placeholder="Cerca..." onKeyDown={(e)=>{ if(e.key==='Enter' && onSearch) onSearch(e.target.value) }} style={{borderRadius:999,padding:'6px 10px',border:'none',outline:'none'}} />
           </div>
-          <button className="tab" onClick={onOpenNotifications} title="Notifiche" style={{position:'relative'}}>
-            <Icon.Bell />
-            {notificationsCount>0 && <span style={{position:'absolute',top:2,right:2,background:'tomato',color:'#fff',borderRadius:999,padding:'0 6px',fontSize:11}}>{notificationsCount}</span>}
-          </button>
+          {/* Notifiche rimosse */}
           <button className="tab" onClick={()=> setTheme(t=> t==='dark'?'light':'dark')} title={theme==='dark'?'Tema chiaro':'Tema scuro'}>
             {theme==='dark' ? <Icon.Sun/> : <Icon.Moon/>}
           </button>

@@ -319,3 +319,4 @@ create trigger profiles_sync_auth_metadata
 after insert or update of role, full_name on public.profiles
 for each row execute function public.sync_auth_metadata_from_profiles();
 
+-- (Notifiche rimosse dall'app UI; nessuna risorsa necessaria qui)
