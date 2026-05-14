@@ -7,6 +7,7 @@ import { getSignedUrl } from '../_integration/signedUrl.js'
 export default function Rapportini({ user, db, refresh, isManager=false }){
   const [form,setForm]=useState({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null })
   const [forUser,setForUser]=useState(user.id)
+  const activeCommesse = useMemo(()=> (db.commesse||[]).filter(c=>!c.archived_at), [db.commesse])
   const pos = useMemo(()=> (db.posizioni||[]).filter(p=>p.commessa_id===form.commessa_id), [db.posizioni, form.commessa_id])
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1); weekStart.setHours(0,0,0,0)
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999)
@@ -81,7 +82,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
           <input type="number" min="0" step="0.5" placeholder="Ore" value={form.ore} onChange={e=>setForm({...form, ore:e.target.value})}/>
           <select value={form.commessa_id} onChange={e=>setForm({...form, commessa_id:e.target.value})}>
             <option value="">- Commessa -</option>
-            {(db.commesse||[]).map(c=>(<option key={c.id} value={c.id}>{c.code} - {c.cantiere||'-'}</option>))}
+            {activeCommesse.map(c=>(<option key={c.id} value={c.id}>{c.code} - {c.cantiere||'-'}</option>))}
           </select>
         </div>
         <div className="grid3" style={{marginTop:8}}>

@@ -1,6 +1,7 @@
 # Dependencies and build
 node_modules/
 dist/
+supabase/.temp/
 
 # Env files
 .env

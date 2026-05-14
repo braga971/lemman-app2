@@ -61,7 +61,8 @@ alter table if exists public.commesse
   add column if not exists code text,
   add column if not exists cantiere text,
   add column if not exists descrizione text,
-  add column if not exists cantiere_binded boolean not null default true;
+  add column if not exists cantiere_binded boolean not null default true,
+  add column if not exists archived_at timestamptz;
 
 alter table if exists public.posizioni
   add column if not exists commessa_id uuid,

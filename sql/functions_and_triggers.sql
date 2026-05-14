@@ -34,23 +34,29 @@ after insert or update of role, full_name on public.profiles
 for each row execute function public.sync_auth_metadata_from_profiles();
 
 -- =============== CLEANUP LEGACY NOTIFICATION TRIGGERS ===============
--- In alcune istanze potrebbe esistere ancora un trigger lato DB che scrive su
--- public.notifications quando si inserisce/aggiorna public.shift_schedules.
+-- In alcune istanze potrebbero esistere ancora trigger lato DB che scrivono su
+-- public.notifications quando si inserisce/aggiorna rapportini, tasks o turni.
 -- Poiché l'app ha rimosso le notifiche, evitiamo errori come
 -- "relation public.notifications does not exist" eliminando eventuali trigger
--- custom residui su shift_schedules.
+-- custom residui che richiamano funzioni notification.
 do $$
 declare r record;
 begin
   for r in
-    select t.tgname
+    select n.nspname, c.relname, t.tgname
     from pg_trigger t
     join pg_class c on c.oid = t.tgrelid
     join pg_namespace n on n.oid = c.relnamespace
+    join pg_proc p on p.oid = t.tgfoid
     where n.nspname = 'public'
-      and c.relname = 'shift_schedules'
+      and c.relname in ('rapportini', 'tasks', 'shift_schedules')
       and t.tgisinternal = false
+      and (
+        p.proname ilike '%notification%'
+        or p.prosrc ilike '%notifications%'
+        or p.prosrc ilike '%notification%'
+      )
   loop
-    execute format('drop trigger %I on public.shift_schedules', r.tgname);
+    execute format('drop trigger %I on %I.%I', r.tgname, r.nspname, r.relname);
   end loop;
 end $$;

@@ -76,7 +76,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   useEffect(()=>{ refreshAssignments() }, [activeCantiere, from])
   useEffect(()=>{ setValues({}); setAssignedElsewhere(new Set()) }, [activeCantiere, from])
 
-  // Limita i cantieri visibili al dipendente: solo quelli dove ÃƒÂ¨ assegnato (settimana corrente o prossima)
+  // Limita i cantieri visibili al dipendente: solo quelli dove è assegnato (settimana corrente o prossima)
   useEffect(()=>{ (async()=>{
     try{
       if (isManager || !user || !from || !cantieri.length) return

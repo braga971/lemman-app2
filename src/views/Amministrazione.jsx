@@ -357,12 +357,23 @@ export default function Amministrazione({ db, profiles, refresh }){
   const [rapDraft, setRapDraft] = useState(null)
   // Commesse & Posizioni state
   const [comm, setComm] = useState({ code:'', cantiere:'', descrizione:'', cantiere_binded:true })
+  const [showArchivedCommesse, setShowArchivedCommesse] = useState(false)
   const [editingComm, setEditingComm] = useState(null)
   const [commDraft, setCommDraft] = useState(null)
   const [posForm, setPosForm] = useState({ commessa_id:'', name:'' })
   const posList = useMemo(()=> (db.posizioni||[]).filter(p=> String(p.commessa_id)===String(posForm.commessa_id)), [db.posizioni, posForm.commessa_id])
   const [editingPos, setEditingPos] = useState(null)
   const [posDraft, setPosDraft] = useState(null)
+  const commesseByCreatedAt = useMemo(
+    ()=> [...(db.commesse||[])].sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0)),
+    [db.commesse]
+  )
+  const activeCommesse = useMemo(()=> commesseByCreatedAt.filter(c=>!c.archived_at), [commesseByCreatedAt])
+  const completedCommesse = useMemo(()=> commesseByCreatedAt.filter(c=>!!c.archived_at), [commesseByCreatedAt])
+  const visibleCommesse = useMemo(
+    ()=> showArchivedCommesse ? completedCommesse : activeCommesse,
+    [completedCommesse, activeCommesse, showArchivedCommesse]
+  )
 
   async function setStato(r, stato){
     const { error } = await supabase.from('rapportini').update({ stato }).eq('id', r.id)
@@ -426,6 +437,23 @@ export default function Amministrazione({ db, profiles, refresh }){
     }catch(e){ alert(e.message||String(e)) }
   }
 
+  async function completeCommessa(commessa){
+    try{
+      if(!confirm('Segnare questa commessa come completata? Non comparirà più nelle nuove compilazioni, ma resterà nello storico.')) return
+      const { error } = await supabase.from('commesse').update({ archived_at: new Date().toISOString() }).eq('id', commessa.id)
+      if(error) return alert(error.message)
+      refresh&&refresh()
+    }catch(e){ alert(e.message||String(e)) }
+  }
+
+  async function restoreCommessa(commessa){
+    try{
+      const { error } = await supabase.from('commesse').update({ archived_at: null }).eq('id', commessa.id)
+      if(error) return alert(error.message)
+      refresh&&refresh()
+    }catch(e){ alert(e.message||String(e)) }
+  }
+
   return (
     <div className="container" style={{paddingTop:16}}>
       <div className="grid2">
@@ -452,16 +480,23 @@ export default function Amministrazione({ db, profiles, refresh }){
             }}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><Icon.Plus/> Crea commessa</span></button>
           </div>
 
+          <label style={{display:'flex',gap:8,alignItems:'center',marginTop:12}}>
+            <input type="checkbox" checked={showArchivedCommesse} onChange={e=>setShowArchivedCommesse(e.target.checked)} />
+            <span>Mostra commesse complete</span>
+          </label>
+
           <table className="table" style={{marginTop:12}}>
-            <thead><tr><th>Codice</th><th>Cantiere</th><th>Descrizione</th><th>Bind</th><th></th></tr></thead>
+            <thead><tr><th>Codice</th><th>Cantiere</th><th>Descrizione</th><th>Stato</th><th>Bind</th><th></th></tr></thead>
             <tbody>
-              {(db.commesse||[]).map(c=>{
+              {visibleCommesse.map(c=>{
                 const isEdit = editingComm===c.id
+                const isArchived = !!c.archived_at
                 return (
                   <tr key={c.id}>
                     <td>{isEdit? <input value={commDraft?.code ?? ''} onChange={e=>setCommDraft(v=>({...v, code:e.target.value}))}/> : (c.code||'-')}</td>
                     <td>{isEdit? <input value={commDraft?.cantiere ?? ''} onChange={e=>setCommDraft(v=>({...v, cantiere:e.target.value}))}/> : (c.cantiere||'-')}</td>
                     <td>{isEdit? <input value={commDraft?.descrizione ?? ''} onChange={e=>setCommDraft(v=>({...v, descrizione:e.target.value}))}/> : (c.descrizione||'-')}</td>
+                    <td><span className="badge">{isArchived ? 'completata' : 'attiva'}</span></td>
                     <td>{isEdit? <input type="checkbox" checked={!!(commDraft?.cantiere_binded ?? c.cantiere_binded)} onChange={e=>setCommDraft(v=>({...v, cantiere_binded:e.target.checked}))}/> : (c.cantiere_binded ? 'Si' : 'No')}</td>
                     <td style={{textAlign:'right'}}>
                       {isEdit ? (
@@ -472,7 +507,11 @@ export default function Amministrazione({ db, profiles, refresh }){
                       ): (
                         <>
                           <button className="btn" onClick={()=>{ setEditingComm(c.id); setCommDraft({...c}) }}><Icon.Edit style={{marginRight:6}}/> Modifica</button>
-                          <button className="btn danger" onClick={async()=>{ if(!confirm('Eliminare commessa e relative posizioni?')) return; const { error } = await supabase.from('commesse').delete().eq('id', c.id); if(error) return alert(error.message); refresh&&refresh() }}><Icon.Trash style={{marginRight:6}}/> Elimina</button>
+                          {isArchived ? (
+                            <button className="btn" onClick={()=>restoreCommessa(c)}>Riapri</button>
+                          ) : (
+                            <button className="btn secondary" onClick={()=>completeCommessa(c)}><Icon.CheckCircle style={{marginRight:6}}/> Completa</button>
+                          )}
                         </>
                       )}
                     </td>
@@ -487,7 +526,7 @@ export default function Amministrazione({ db, profiles, refresh }){
           <h3><span className="icon-chip chip-utenti" style={{marginRight:6}}><Icon.List/></span> Posizioni di Commessa</h3>
           <select className="select" value={posForm.commessa_id} onChange={e=>setPosForm({...posForm, commessa_id:e.target.value})}>
             <option value="">- Seleziona commessa -</option>
-            {(db.commesse||[]).map(c=> (<option key={c.id} value={String(c.id)}>{c.code} - {c.cantiere||'-'}</option>))}
+            {activeCommesse.map(c=> (<option key={c.id} value={String(c.id)}>{c.code} - {c.cantiere||'-'}</option>))}
           </select>
           <div className="grid2" style={{marginTop:8}}>
             <input placeholder="Nuova posizione" value={posForm.name} onChange={e=>setPosForm({...posForm, name:e.target.value})} />

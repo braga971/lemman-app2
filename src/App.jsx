@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Navbar from './components/Navbar.jsx'
 import Login from './Login.jsx'
 import { useAuth, useProfile } from './_integration/hooks.js'
@@ -176,7 +176,12 @@ export default function App(){
           <div className='search-panel' onClick={e=>e.stopPropagation()}>
             {searchQ && <div style={{padding:12,fontWeight:700}}>Risultati per: {searchQ}</div>}
             {searchResults.map((r,i)=> (
-              <div key={i} className='item' onClick={()=>{ if(r.type==='task') setActive('attivita'); else if(r.type==='bacheca') setActive('bacheca'); else if(r.type==='rapportino') setActive('rapportini'); setSearchOpen(false) }}>
+              <div key={i} className='item' onClick={()=>{
+                const next = r.type === 'task' ? 'attivita' : r.type === 'bacheca' ? 'bacheca' : 'rapportini'
+                setActive(next)
+                navigate(routeFor[next] || '/')
+                setSearchOpen(false)
+              }}>
                 <div style={{fontWeight:600}}>{r.text}</div>
                 <div className='muted'>{r.type} · {r.extra}</div>
               </div>
