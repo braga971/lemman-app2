@@ -12,8 +12,6 @@ import Rapportini from './views/Rapportini.jsx'
 import Bacheca from './views/Bacheca.jsx'
 import Amministrazione from './views/Amministrazione.jsx'
 import UtentiView from './views/UtentiView.jsx'
-import Dashboard from './views/Dashboard.jsx'
-import Report from './views/Report.jsx'
 import TurniSettimanali from './views/TurniSettimanaliView.jsx'
 import ChangePasswordModal from './components/ChangePasswordModal.jsx'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
@@ -26,8 +24,6 @@ const TABS = [
   { key:'turni_settimanali', label:'Turni Settimanali', icon:<Icon.Calendar /> },
   { key:'admin', label:'Amministrazione', manager:true, icon:<Icon.Settings /> },
   { key:'utenti', label:'Utenti', manager:true, icon:<Icon.Users /> },
-  { key:'dashboard', label:'Dashboard', manager:true, icon:<Icon.BarChart /> },
-  { key:'report', label:'Report', manager:true, icon:<Icon.FileText /> },
 ]
 
 const routeFor = {
@@ -38,8 +34,6 @@ const routeFor = {
   turni_settimanali: '/turni',
   admin: '/admin',
   utenti: '/utenti',
-  dashboard: '/dashboard',
-  report: '/report',
 }
 
 function keyFromPath(pathname){
@@ -93,7 +87,7 @@ export default function App(){
       { queryKey:['tasks'], queryFn: async()=> (await supabase.from('tasks').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['bacheca'], queryFn: async()=> (await supabase.from('bacheca').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['rapportini'], queryFn: async()=> (await supabase.from('rapportini').select('*').order('created_at', {ascending:false})).data||[], enabled },
-      { queryKey:['profiles'], queryFn: async()=> (await supabase.from('profiles').select('*').order('created_at', {ascending:false})).data||[], enabled },
+      { queryKey:['profiles'], queryFn: async()=> (await supabase.from('profiles').select('*').order('matricola', {ascending:true, nullsFirst:false}).order('created_at', {ascending:true})).data||[], enabled },
     ]
   })
   const [qCantieri,qCommesse,qPosizioni,qTasks,qBacheca,qRapportini,qProfiles] = results
@@ -197,8 +191,8 @@ export default function App(){
         <Route path="/turni" element={<TurniSettimanali isManager={isManager} />} />
         <Route path="/admin" element={isManager ? (<Amministrazione db={db} profiles={db.profiles} refresh={refresh} />) : (<Navigate to="/" replace />)} />
         <Route path="/utenti" element={isManager ? (<UtentiView />) : (<Navigate to="/" replace />)} />
-        <Route path="/dashboard" element={isManager ? (<Dashboard />) : (<Navigate to="/" replace />)} />
-        <Route path="/report" element={isManager ? (<Report />) : (<Navigate to="/" replace />)} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
+        <Route path="/report" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

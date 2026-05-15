@@ -6,11 +6,11 @@ export default function UtentiView(){
   const [rows,setRows]=useState([])
   const [err,setErr]=useState('')
   const [loading,setLoading]=useState(false)
-  const [form,setForm]=useState({ email:'', password:'', full_name:'', role:'user' })
+  const [form,setForm]=useState({ email:'', password:'', full_name:'', matricola:'', role:'user' })
 
   async function load(){
     setLoading(true); setErr('')
-    const { data, error } = await supabase.from('profiles').select('*').order('created_at',{ascending:false})
+    const { data, error } = await supabase.from('profiles').select('*').order('matricola',{ascending:true, nullsFirst:false}).order('created_at',{ascending:true})
     if(error){ setErr(error.message); setRows([]) } else { setRows(data||[]) }
     setLoading(false)
   }
@@ -19,6 +19,13 @@ export default function UtentiView(){
   async function setRole(id, role){
     setErr('')
     const { error } = await supabase.from('profiles').update({ role }).eq('id', id)
+    if (error) setErr(error.message); else load()
+  }
+
+  async function setMatricola(id, matricola){
+    setErr('')
+    const value = String(matricola ?? '').trim()
+    const { error } = await supabase.from('profiles').update({ matricola: value ? Number(value) : null }).eq('id', id)
     if (error) setErr(error.message); else load()
   }
 
@@ -38,9 +45,9 @@ export default function UtentiView(){
       if (error) throw error
       // Inserisci/aggiorna profilo lato DB (in caso l'edge function non lo faccia)
       if (data?.user_id){
-        await supabase.from('profiles').upsert({ id: data.user_id, email: form.email.trim(), full_name: form.full_name?.trim() || null, role: form.role || 'user' })
+        await supabase.from('profiles').upsert({ id: data.user_id, email: form.email.trim(), full_name: form.full_name?.trim() || null, matricola: form.matricola ? Number(form.matricola) : null, role: form.role || 'user' })
       }
-      setForm({ email:'', password:'', full_name:'', role:'user' })
+      setForm({ email:'', password:'', full_name:'', matricola:'', role:'user' })
       await load()
     } catch(e){
       let msg = String(e?.message || e)
@@ -111,7 +118,7 @@ export default function UtentiView(){
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
         <h3><Icon.Users style={{marginRight:6}}/> Gestione Utenti</h3>
-        <form onSubmit={createUser} style={{display:'grid', gridTemplateColumns:'1.5fr 1fr 1fr 0.8fr auto', gap:8, alignItems:'end', marginBottom:12}}>
+        <form onSubmit={createUser} style={{display:'grid', gridTemplateColumns:'1.5fr 1fr 1fr 0.6fr 0.8fr auto', gap:8, alignItems:'end', marginBottom:12}}>
           <div>
             <label>Email</label>
             <input className="input" type="email" value={form.email} onChange={e=>setForm(f=>({...f, email:e.target.value}))} required />
@@ -123,6 +130,10 @@ export default function UtentiView(){
           <div>
             <label>Nome completo</label>
             <input className="input" type="text" value={form.full_name} onChange={e=>setForm(f=>({...f, full_name:e.target.value}))} />
+          </div>
+          <div>
+            <label>Matricola</label>
+            <input className="input" type="number" min="1" value={form.matricola} onChange={e=>setForm(f=>({...f, matricola:e.target.value}))} />
           </div>
           <div>
             <label>Ruolo</label>
@@ -140,14 +151,23 @@ export default function UtentiView(){
         <div className="table-responsive">
           <table className="table">
             <thead>
-              <tr><th>Email</th><th>Nome</th><th>Ruolo</th><th>Creato</th><th>Azioni</th></tr>
+              <tr><th>Matricola</th><th>Email</th><th>Nome</th><th>Ruolo</th><th>Creato</th><th>Azioni</th></tr>
             </thead>
             <tbody>
               {rows?.length===0 && !loading && (
-                <tr><td colSpan="5" style={{textAlign:'center', opacity:0.7}}>Nessun utente</td></tr>
+                <tr><td colSpan="6" style={{textAlign:'center', opacity:0.7}}>Nessun utente</td></tr>
               )}
               {rows?.map(r=>(
                 <tr key={r.id}>
+                  <td style={{width:110}}>
+                    <input
+                      className="input"
+                      type="number"
+                      min="1"
+                      defaultValue={r.matricola ?? ''}
+                      onBlur={e=>setMatricola(r.id, e.target.value)}
+                    />
+                  </td>
                   <td>{r.email || r.username || r.id}</td>
                   <td>{r.full_name || '—'}</td>
                   <td>
