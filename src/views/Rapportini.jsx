@@ -9,9 +9,14 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const [forUser,setForUser]=useState(user.id)
   const activeCommesse = useMemo(()=> (db.commesse||[]).filter(c=>!c.archived_at), [db.commesse])
   const pos = useMemo(()=> (db.posizioni||[]).filter(p=>p.commessa_id===form.commessa_id), [db.posizioni, form.commessa_id])
-  const weekStart = new Date(); weekStart.setDate(weekStart.getDate()-weekStart.getDay()+1); weekStart.setHours(0,0,0,0)
+  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); weekStart.setHours(0,0,0,0)
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999)
-  const mine = (db.rapportini||[]).filter(r=> r.user_id===user.id && new Date(r.data)>=weekStart && new Date(r.data)<=weekEnd)
+  const weekStartText = formatDateInput(weekStart)
+  const weekEndText = formatDateInput(weekEnd)
+  const mine = (db.rapportini||[]).filter(r=>{
+    const d = String(r.data || '').slice(0, 10)
+    return String(r.user_id) === String(user.id) && d >= weekStartText && d <= weekEndText
+  })
 
   useEffect(()=>{
     // auto-compila cantiere quando cambia commessa
@@ -62,7 +67,10 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       cantiere: form.cantiere || null, descrizione: form.descrizione || null,
       photo_url, photo_path
     })
-    if (error) alert(error.message); else { setForm({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null }); refresh() }
+    if (error) alert(error.message); else {
+      setForm({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null })
+      await (refresh && refresh())
+    }
   }
 
   return (
@@ -125,6 +133,13 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       )}
     </div>
   )
+}
+
+function formatDateInput(date){
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 function ManagerRapportiniTable({ db, profiles, refresh }){

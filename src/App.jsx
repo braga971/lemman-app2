@@ -100,7 +100,13 @@ export default function App(){
     rapportini: qRapportini?.data||[],
     profiles: qProfiles?.data||[],
   }
-  const refresh = ()=> { try{ queryClient.invalidateQueries({ predicate: ()=> true }) } catch(_){} }
+  const refresh = ()=> {
+    try{
+      return queryClient.invalidateQueries({ predicate: ()=> true })
+    } catch(_){
+      return Promise.resolve()
+    }
+  }
 
   // sync UI tab with URL
   useEffect(()=>{

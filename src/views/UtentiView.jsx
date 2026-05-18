@@ -38,8 +38,15 @@ export default function UtentiView(){
       setLoading(true)
       const { data: sess } = await supabase.auth.getSession()
       const token = sess?.session?.access_token
+      const matricolaValue = String(form.matricola ?? '').trim()
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { email: form.email.trim(), password: form.password, full_name: form.full_name?.trim() || null, role: form.role || 'user' },
+        body: {
+          email: form.email.trim(),
+          password: form.password,
+          full_name: form.full_name?.trim() || null,
+          matricola: matricolaValue ? Number(matricolaValue) : null,
+          role: form.role || 'user'
+        },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (error) throw error
@@ -79,7 +86,7 @@ export default function UtentiView(){
       const { data: sess } = await supabase.auth.getSession()
       const token = sess?.session?.access_token
       const { error } = await supabase.functions.invoke('delete-user', {
-        body: { id: row.id, email: row.email },
+        body: { user_id: row.id, email: row.email },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (error) throw error
@@ -181,7 +188,7 @@ export default function UtentiView(){
                   <td>{r.created_at ? new Date(r.created_at).toISOString().slice(0,19).replace('T',' ') : '—'}</td>
                   <td style={{textAlign:'right', display:'flex', gap:6, justifyContent:'flex-end'}}>
                     <button className="btn" onClick={()=>resetPassword(r)} disabled={loading} title="Reimposta password"><Icon.Lock /> Reset</button>
-                    
+                    <button className="btn danger" onClick={()=>deleteUser(r)} disabled={loading} title="Elimina utente">Elimina</button>
                   </td>
                 </tr>
               ))}

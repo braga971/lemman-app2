@@ -42,7 +42,7 @@ serve(async (req) => {
     // Payload
     let payload: any = {}
     try { payload = await req.json() } catch { payload = {} }
-    const { email, password, full_name, role } = payload || {}
+    const { email, password, full_name, matricola, role } = payload || {}
     if (!email || !password) {
       return new Response(JSON.stringify({ error: 'email/password required' }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } })
     }
@@ -57,7 +57,13 @@ serve(async (req) => {
     } catch (_) { /* ignore pre-check errors; proceed to create */ }
 
     // 1) Create auth user
-    const { data: authUser, error: e1 } = await supaAdmin.auth.admin.createUser({ email, password, email_confirm: true })
+    const nextRole = role || 'user'
+    const { data: authUser, error: e1 } = await supaAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { role: nextRole }
+    })
     if (e1) {
       // Log server-side for easier debugging (avoid logging password)
       console.error('create-user: admin.createUser failed', { email, code: (e1 as any)?.code, message: e1.message })
@@ -70,7 +76,16 @@ serve(async (req) => {
     const uid = authUser!.user!.id
 
     // 2) Upsert profile
-    const { error: e2 } = await supaAdmin.from('profiles').upsert({ id: uid, email, full_name, role: role || 'user' })
+    const matricolaNumber = matricola === null || matricola === undefined || String(matricola).trim() === ''
+      ? null
+      : Number(matricola)
+    const { error: e2 } = await supaAdmin.from('profiles').upsert({
+      id: uid,
+      email,
+      full_name,
+      matricola: typeof matricolaNumber === 'number' && Number.isFinite(matricolaNumber) ? matricolaNumber : null,
+      role: nextRole
+    })
     if (e2) {
       console.error('create-user: profiles upsert failed', { email, uid, message: e2.message })
       return new Response(JSON.stringify({ error: e2.message }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } })
