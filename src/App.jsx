@@ -10,6 +10,7 @@ import Home from './views/Home.jsx'
 import Attivita from './views/Attivita.jsx'
 import Rapportini from './views/Rapportini.jsx'
 import Bacheca from './views/Bacheca.jsx'
+import Mensa from './views/Mensa.jsx'
 import Amministrazione from './views/Amministrazione.jsx'
 import UtentiView from './views/UtentiView.jsx'
 import TurniSettimanali from './views/TurniSettimanaliView.jsx'
@@ -20,6 +21,7 @@ const TABS = [
   { key:'home', label:'Home', icon:<Icon.Home /> },
   { key:'attivita', label:'Attività', icon:<Icon.ClipboardCheck /> },
   { key:'rapportini', label:'Rapportini', icon:<Icon.FileText /> },
+  { key:'mensa', label:'Mensa', icon:<Icon.Utensils /> },
   { key:'bacheca', label:'Bacheca', icon:<Icon.Megaphone /> },
   { key:'turni_settimanali', label:'Turni Settimanali', icon:<Icon.Calendar /> },
   { key:'admin', label:'Amministrazione', manager:true, icon:<Icon.Settings /> },
@@ -30,6 +32,7 @@ const routeFor = {
   home: '/',
   attivita: '/attivita',
   rapportini: '/rapportini',
+  mensa: '/mensa',
   bacheca: '/bacheca',
   turni_settimanali: '/turni',
   admin: '/admin',
@@ -69,6 +72,8 @@ export default function App(){
   const [active,setActive]=useState(keyFromPath(location.pathname))
   // Considera anche user.user_metadata.role per compatibilità/sync
   const isManager = (profile?.role==='manager') || (user?.user_metadata?.role==='manager')
+  const isMensaUser = String(user?.email || '').toLowerCase() === 'mensa@lemman.it' || profile?.role === 'mensa' || user?.user_metadata?.role === 'mensa'
+  const visibleTabs = isMensaUser ? TABS.filter(t=>t.key==='mensa') : TABS
 
   // Blocca accesso a profili archiviati
   useEffect(()=>{
@@ -87,10 +92,12 @@ export default function App(){
       { queryKey:['tasks'], queryFn: async()=> (await supabase.from('tasks').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['bacheca'], queryFn: async()=> (await supabase.from('bacheca').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['rapportini'], queryFn: async()=> (await supabase.from('rapportini').select('*').order('created_at', {ascending:false})).data||[], enabled },
+      { queryKey:['mensa_ordini'], queryFn: async()=> (await supabase.from('mensa_ordini').select('*').order('data', {ascending:false}).order('created_at', {ascending:false}).limit(5000)).data||[], enabled },
+      { queryKey:['user_messages'], queryFn: async()=> (await supabase.from('user_messages').select('*').order('created_at', {ascending:false})).data||[], enabled },
       { queryKey:['profiles'], queryFn: async()=> (await supabase.from('profiles').select('*').order('matricola', {ascending:true, nullsFirst:false}).order('created_at', {ascending:true})).data||[], enabled },
     ]
   })
-  const [qCantieri,qCommesse,qPosizioni,qTasks,qBacheca,qRapportini,qProfiles] = results
+  const [qCantieri,qCommesse,qPosizioni,qTasks,qBacheca,qRapportini,qMensaOrdini,qUserMessages,qProfiles] = results
   const db = {
     cantieri: qCantieri?.data||[],
     commesse: qCommesse?.data||[],
@@ -98,6 +105,8 @@ export default function App(){
     tasks: qTasks?.data||[],
     bacheca: qBacheca?.data||[],
     rapportini: qRapportini?.data||[],
+    mensa_ordini: qMensaOrdini?.data||[],
+    user_messages: qUserMessages?.data||[],
     profiles: qProfiles?.data||[],
   }
   const refresh = ()=> {
@@ -113,6 +122,10 @@ export default function App(){
     const k = keyFromPath(location.pathname)
     if (k !== active) setActive(k)
   }, [location.pathname])
+
+  useEffect(()=>{
+    if (isMensaUser && location.pathname !== '/mensa') navigate('/mensa')
+  }, [isMensaUser, location.pathname])
 
   const [toasts,setToasts] = useState([])
   function pushToast(msg){ const id = Date.now()+Math.random(); setToasts(t=> [...t, { id, msg }]); setTimeout(()=> setToasts(t=> t.filter(x=>x.id!==id)), 4500) }
@@ -130,6 +143,8 @@ export default function App(){
       .on('postgres_changes', { event:'*', schema:'public', table:'tasks' }, ()=> queryClient.invalidateQueries({ queryKey:['tasks'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'bacheca' }, ()=> queryClient.invalidateQueries({ queryKey:['bacheca'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'rapportini' }, ()=> queryClient.invalidateQueries({ queryKey:['rapportini'] }))
+      .on('postgres_changes', { event:'*', schema:'public', table:'mensa_ordini' }, ()=> queryClient.invalidateQueries({ queryKey:['mensa_ordini'] }))
+      .on('postgres_changes', { event:'*', schema:'public', table:'user_messages' }, ()=> queryClient.invalidateQueries({ queryKey:['user_messages'] }))
       .subscribe()
     return ()=>{ try{ supabase.removeChannel(ch) }catch(_){ /* ignore */ } }
   }, [user])
@@ -160,7 +175,7 @@ export default function App(){
   return (
     <div>
       <Navbar
-        tabs={TABS}
+        tabs={visibleTabs}
         active={active}
         onChange={(k)=>{ setActive(k); const p = routeFor[k] || '/'; navigate(p) }}
         onLogout={()=>supabase.auth.signOut()}
@@ -193,6 +208,7 @@ export default function App(){
         <Route path="/" element={<Home user={user} profile={profile} db={db} />} />
         <Route path="/attivita" element={<Attivita user={user} db={db} refresh={refresh} isManager={isManager} />} />
         <Route path="/rapportini" element={<Rapportini user={user} db={db} refresh={refresh} isManager={isManager} />} />
+        <Route path="/mensa" element={<Mensa user={user} db={db} refresh={refresh} isManager={isManager} isMensaUser={isMensaUser} />} />
         <Route path="/bacheca" element={<Bacheca db={db} isManager={isManager} refresh={refresh} />} />
         <Route path="/turni" element={<TurniSettimanali isManager={isManager} />} />
         <Route path="/admin" element={isManager ? (<Amministrazione db={db} profiles={db.profiles} refresh={refresh} />) : (<Navigate to="/" replace />)} />

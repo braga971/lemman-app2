@@ -55,6 +55,7 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
       case 'home': return 'chip-home'
       case 'attivita': return 'chip-attivita'
       case 'rapportini': return 'chip-rapportini'
+      case 'mensa': return 'chip-mensa'
       case 'bacheca': return 'chip-bacheca'
       case 'turni_settimanali': return 'chip-turni'
       case 'admin': return 'chip-admin'

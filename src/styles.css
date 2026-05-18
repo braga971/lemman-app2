@@ -1,7 +1,7 @@
 :root{
   --bg:#f7f7fb; --card:#ffffff; --border:#e5e7eb; --text:#111827; --muted:#6b7280;
   --pill:#111; --pill-text:#fff; --accent:#3b82f6; --success:#10b981; --warn:#f59e0b;
-  --chip-home:#2563eb; --chip-attivita:#0ea5e9; --chip-rapportini:#10b981; --chip-bacheca:#f59e0b;
+  --chip-home:#2563eb; --chip-attivita:#0ea5e9; --chip-rapportini:#10b981; --chip-mensa:#f97316; --chip-bacheca:#f59e0b;
   --chip-turni:#8b5cf6; --chip-admin:#ef4444; --chip-utenti:#14b8a6; --chip-dashboard:#22c55e; --chip-report:#e11d48; --chip-default:#6b7280;
 }
 *{ box-sizing:border-box }
@@ -19,12 +19,21 @@ body{ margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-ser
 .btn:active{ transform:translateY(1px) }
 .btn.primary{ background:linear-gradient(135deg, var(--accent), #7c3aed); color:#fff }
 .btn.ghost{ background:#2b2b2b; color:#fff }
+.btn.secondary{ background:#f3f4f6; color:#111827; border:1px solid var(--border) }
+.muted{ color:var(--muted) }
 .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px }
 .grid{ display:grid; gap:12px }
 .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:16px }
+.grid3{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px }
+.grid4{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px }
+.summary-tile{ border:1px solid var(--border); border-radius:10px; padding:12px; background:rgba(0,0,0,0.02) }
 .section h3{ margin:0 0 10px 0 }
 .table{ width:100%; border-collapse:collapse }
 .table th,.table td{ padding:10px; border-bottom:1px solid var(--border); text-align:left; font-size:14px }
+.table-responsive{ width:100%; overflow-x:auto }
+.alert{ border:1px solid var(--border); border-radius:10px; padding:10px 12px }
+.alert.ok{ background:#ecfdf5; border-color:#a7f3d0; color:#065f46 }
+.alert.warn{ background:#fff7ed; border-color:#fed7aa; color:#9a3412 }
 input, select, textarea{ border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:14px }
 input:focus, select:focus, textarea:focus{ outline:2px solid rgba(59,130,246,0.35); box-shadow:0 0 0 3px rgba(59,130,246,0.15) }
 .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
@@ -41,6 +50,8 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
   .container{ padding:12px }
   .card{ padding:12px; border-radius:12px }
   .grid2{ grid-template-columns:1fr }
+  .grid3{ grid-template-columns:1fr }
+  .grid4{ grid-template-columns:repeat(2, minmax(0,1fr)) }
   .grid{ grid-template-columns:1fr }
   .row{ gap:6px }
   input, select, textarea{ width:100% }
@@ -95,6 +106,10 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 
 :root[data-theme="dark"]{ --bg:#0f1115; --card:#151821; --border:#262a36; --text:#e5e7eb; --muted:#9ca3af; --pill:#e5e7eb; --pill-text:#111; --accent:#8b5cf6; --success:#10b981; --warn:#f59e0b }
 :root[data-theme="dark"] .nav{ background:rgba(11,13,18,0.7); backdrop-filter:saturate(120%) blur(8px); color:#fff }
+:root[data-theme="dark"] .btn.secondary{ background:#1f2430; color:var(--text) }
+:root[data-theme="dark"] .summary-tile{ background:rgba(255,255,255,0.03) }
+:root[data-theme="dark"] .alert.ok{ background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.35); color:#a7f3d0 }
+:root[data-theme="dark"] .alert.warn{ background:rgba(249,115,22,0.12); border-color:rgba(249,115,22,0.4); color:#fed7aa }
 
 /* Toasts */
 .toast-container{ position:fixed; top:64px; right:16px; z-index:50; display:flex; flex-direction:column; gap:8px }
@@ -113,6 +128,7 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 .chip-home{ background:var(--chip-home) }
 .chip-attivita{ background:var(--chip-attivita) }
 .chip-rapportini{ background:var(--chip-rapportini) }
+.chip-mensa{ background:var(--chip-mensa) }
 .chip-bacheca{ background:var(--chip-bacheca) }
 .chip-turni{ background:var(--chip-turni) }
 .chip-admin{ background:var(--chip-admin) }
@@ -120,6 +136,25 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 .chip-dashboard{ background:var(--chip-dashboard) }
 .chip-report{ background:var(--chip-report) }
 .chip-default{ background:var(--chip-default) }
+
+.meal-grid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px }
+.meal-card{ border:1px solid var(--border); border-radius:10px; padding:12px; display:grid; gap:10px; align-content:start; min-height:178px; background:var(--card) }
+.meal-card.selected{ border-color:var(--chip-mensa); box-shadow:0 0 0 3px rgba(249,115,22,0.14) }
+.meal-visual{ height:72px; display:flex; align-items:center; justify-content:center; background:rgba(249,115,22,0.08); border-radius:8px }
+.meal-visual svg{ width:64px; height:64px }
+.meal-counter{ display:grid; grid-template-columns:40px 1fr 40px; gap:8px; align-items:center; text-align:center; margin-top:auto }
+.meal-counter .btn{ min-width:40px; padding:8px 0 }
+.meal-counter .btn:disabled{ opacity:.45; cursor:not-allowed }
+.meal-details{ display:grid; gap:8px }
+.meal-details input{ width:100% }
+
+@media (max-width: 768px){
+  .meal-grid{ grid-template-columns:repeat(2, minmax(0,1fr)) }
+}
+
+@media (max-width: 480px){
+  .meal-grid{ grid-template-columns:1fr }
+}
 
 /* Dropdown menu item hover */
 .menu-item:hover{ background:rgba(0,0,0,0.04) }

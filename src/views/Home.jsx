@@ -11,6 +11,9 @@ export default function Home({ user, profile, db }){
   const yesterday = dayKeyLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate()-1))
   const tomorrow = dayKeyLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate()+1))
   const myTasks = (db.tasks||[]).filter(t=>t.user_id===user.id)
+  const myMessages = (db.user_messages||[])
+    .filter(m=>m.user_id===user.id)
+    .filter(m=>!m.expires_at || new Date(m.expires_at) >= now)
   const byDay = { [yesterday]:[], [today]:[], [tomorrow]:[] }
   for(const t of myTasks){ if(byDay[t.data]) byDay[t.data].push(t) }
   const viewTitle = (str)=>{
@@ -27,6 +30,20 @@ export default function Home({ user, profile, db }){
       <div className="card section" style={{marginBottom:12}}>
         <h3><span className="icon-chip chip-home" style={{marginRight:6}}><Icon.Home/></span> Benvenuto{displayName}</h3>
       </div>
+
+      {myMessages.length > 0 && (
+        <section className="card section" style={{marginTop:6, borderColor:'#f59e0b'}}>
+          <h3><span className="icon-chip chip-bacheca" style={{marginRight:6}}><Icon.Megaphone/></span> Messaggi</h3>
+          <ul style={{margin:0,paddingLeft:16}}>
+            {myMessages.map(m=>(
+              <li key={m.id} style={{margin:'6px 0'}}>
+                <div style={{whiteSpace:'pre-wrap'}}>{m.message}</div>
+                {m.expires_at && <div className="muted" style={{fontSize:12}}>Visibile fino al {new Date(m.expires_at).toLocaleDateString('it-IT')}</div>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="card section" style={{marginTop:6}}>
         <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Le mie attività</h3>

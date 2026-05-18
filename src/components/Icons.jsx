@@ -76,6 +76,17 @@ export const Calendar = ({ size=16, ...props }) => (
   </svg>
 )
 
+export const Utensils = ({ size=16, ...props }) => (
+  <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M4 3v7"/>
+    <path d="M8 3v7"/>
+    <path d="M6 3v18"/>
+    <path d="M4 10h4"/>
+    <path d="M17 3v18"/>
+    <path d="M17 3c2 1.5 3 3.5 3 6s-1 4.5-3 6"/>
+  </svg>
+)
+
 export const BarChart = ({ size=16, ...props }) => (
   <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <line x1="3" y1="22" x2="21" y2="22"/>

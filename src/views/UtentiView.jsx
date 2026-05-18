@@ -7,11 +7,18 @@ export default function UtentiView(){
   const [err,setErr]=useState('')
   const [loading,setLoading]=useState(false)
   const [form,setForm]=useState({ email:'', password:'', full_name:'', matricola:'', role:'user' })
+  const [messageFor,setMessageFor]=useState(null)
+  const [messageForm,setMessageForm]=useState({ message:'', expires_at:'' })
+  const [messages,setMessages]=useState([])
+  const [editingMessage,setEditingMessage]=useState(null)
 
   async function load(){
     setLoading(true); setErr('')
+    await supabase.from('user_messages').delete().lt('expires_at', new Date().toISOString())
     const { data, error } = await supabase.from('profiles').select('*').order('matricola',{ascending:true, nullsFirst:false}).order('created_at',{ascending:true})
     if(error){ setErr(error.message); setRows([]) } else { setRows(data||[]) }
+    const msgRes = await supabase.from('user_messages').select('*').order('created_at', { ascending:false })
+    if (!msgRes.error) setMessages(msgRes.data || [])
     setLoading(false)
   }
   useEffect(()=>{ load() }, [])
@@ -50,20 +57,6 @@ export default function UtentiView(){
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (error) throw error
-      // Inserisci/aggiorna profilo lato DB (in caso l'edge function non lo faccia)
-      if (data?.user_id){
-        const profilePayload = {
-          id: data.user_id,
-          email: form.email.trim(),
-          full_name: form.full_name?.trim() || null,
-          matricola: matricolaValue ? Number(matricolaValue) : null,
-          role: form.role || 'user'
-        }
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert(profilePayload, { onConflict: 'id' })
-        if (profileError) throw profileError
-      }
       setForm({ email:'', password:'', full_name:'', matricola:'', role:'user' })
       await load()
     } catch(e){
@@ -131,6 +124,61 @@ export default function UtentiView(){
     }
   }
 
+  async function sendMessage(e){
+    e.preventDefault()
+    if (!messageFor) return
+    const text = String(messageForm.message || '').trim()
+    if (!text){ setErr('Scrivi il messaggio da inviare'); return }
+    if (!messageForm.expires_at){ setErr('Inserisci la data di scadenza del messaggio'); return }
+    setErr('')
+    try{
+      setLoading(true)
+      const payload = {
+        user_id: messageFor.id,
+        message: text,
+        expires_at: `${messageForm.expires_at}T23:59:59`,
+      }
+      const { error } = editingMessage
+        ? await supabase.from('user_messages').update(payload).eq('id', editingMessage.id)
+        : await supabase.from('user_messages').insert(payload)
+      if (error) throw error
+      setMessageFor(null)
+      setEditingMessage(null)
+      setMessageForm({ message:'', expires_at:'' })
+      await load()
+      alert(editingMessage ? 'Messaggio modificato' : 'Messaggio inviato')
+    }catch(e){
+      setErr(String(e?.message || e))
+    }finally{
+      setLoading(false)
+    }
+  }
+
+  async function deleteMessage(message){
+    if (!confirm('Cancellare questo messaggio?')) return
+    setErr('')
+    try{
+      setLoading(true)
+      const { error } = await supabase.from('user_messages').delete().eq('id', message.id)
+      if (error) throw error
+      await load()
+    }catch(e){
+      setErr(String(e?.message || e))
+    }finally{
+      setLoading(false)
+    }
+  }
+
+  function openEditMessage(message){
+    const target = rows.find(r=>r.id===message.user_id) || { id: message.user_id, email: message.user_id }
+    setMessageFor(target)
+    setEditingMessage(message)
+    setMessageForm({
+      message: message.message || '',
+      expires_at: String(message.expires_at || '').slice(0,10),
+    })
+  }
+
   return (
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
@@ -157,7 +205,7 @@ export default function UtentiView(){
             <select className="input" value={form.role} onChange={e=>setForm(f=>({...f, role:e.target.value}))}>
               <option value="user">Dipendente</option>
               <option value="manager">Manager</option>
-              
+              <option value="mensa">Mensa</option>
             </select>
           </div>
           <div>
@@ -191,13 +239,14 @@ export default function UtentiView(){
                     <select className="input" value={r.role || 'user'} onChange={e=>setRole(r.id, e.target.value)}>
                       <option value="user">Dipendente</option>
                       <option value="manager">Manager</option>
-                      
+                      <option value="mensa">Mensa</option>
                       <option value="archived">Licenziato</option>
                     </select>
                   </td>
                   <td>{r.created_at ? new Date(r.created_at).toISOString().slice(0,19).replace('T',' ') : '—'}</td>
                   <td style={{textAlign:'right', display:'flex', gap:6, justifyContent:'flex-end'}}>
                     <button className="btn" onClick={()=>resetPassword(r)} disabled={loading} title="Reimposta password"><Icon.Lock /> Reset</button>
+                    <button className="btn secondary" onClick={()=>{ setMessageFor(r); setMessageForm({ message:'', expires_at:'' }) }} disabled={loading} title="Invia messaggio">Invia messaggio</button>
                     <button className="btn danger" onClick={()=>deleteUser(r)} disabled={loading} title="Elimina utente">Elimina</button>
                   </td>
                 </tr>
@@ -206,6 +255,56 @@ export default function UtentiView(){
           </table>
         </div>
       </section>
+      <section className="card section" style={{marginTop:16}}>
+        <h3><Icon.Megaphone style={{marginRight:6}}/> Messaggi inviati</h3>
+        <div className="table-responsive">
+          <table className="table">
+            <thead>
+              <tr><th>Dipendente</th><th>Messaggio</th><th>Scadenza</th><th>Stato</th><th>Azioni</th></tr>
+            </thead>
+            <tbody>
+              {messages.length===0 && (
+                <tr><td colSpan="5" style={{textAlign:'center', opacity:0.7}}>Nessun messaggio inviato</td></tr>
+              )}
+              {messages.map(m=>{
+                const p = rows.find(r=>r.id===m.user_id)
+                const expired = m.expires_at && new Date(m.expires_at) < new Date()
+                return (
+                  <tr key={m.id}>
+                    <td>{p?.full_name || p?.email || m.user_id}</td>
+                    <td style={{whiteSpace:'pre-wrap'}}>{m.message}</td>
+                    <td>{m.expires_at ? new Date(m.expires_at).toLocaleDateString('it-IT') : '-'}</td>
+                    <td><span className="badge">{expired ? 'Scaduto' : 'Attivo'}</span></td>
+                    <td style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
+                      <button className="btn secondary" onClick={()=>openEditMessage(m)} disabled={loading}>Modifica</button>
+                      <button className="btn danger" onClick={()=>deleteMessage(m)} disabled={loading}>Cancella</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {messageFor && (
+        <div className="search-overlay" onClick={()=>{ setMessageFor(null); setEditingMessage(null) }}>
+          <form className="search-panel" style={{padding:14}} onClick={e=>e.stopPropagation()} onSubmit={sendMessage}>
+            <h3 style={{marginTop:0}}>{editingMessage ? 'Modifica messaggio' : 'Invia messaggio'}</h3>
+            <div className="muted" style={{marginBottom:10}}>{messageFor.full_name || messageFor.email}</div>
+            <div className="grid" style={{gap:10}}>
+              <textarea className="input" rows={5} placeholder="Messaggio" value={messageForm.message} onChange={e=>setMessageForm(f=>({...f, message:e.target.value}))} />
+              <div>
+                <label>Scadenza</label>
+                <input className="input" type="date" value={messageForm.expires_at} onChange={e=>setMessageForm(f=>({...f, expires_at:e.target.value}))} />
+              </div>
+              <div className="row" style={{justifyContent:'flex-end'}}>
+                <button type="button" className="btn secondary" onClick={()=>{ setMessageFor(null); setEditingMessage(null) }}>Annulla</button>
+                <button type="submit" className="btn" disabled={loading}>{editingMessage ? 'Salva' : 'Invia'}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

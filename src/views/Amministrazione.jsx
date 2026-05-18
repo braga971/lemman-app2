@@ -339,17 +339,12 @@ export function RiepilogoAttivita({ db, date }){
       {byCant.map(([cant,list])=> (
         <div key={cant} className="card" style={{marginTop:12}}>
           <div style={{fontWeight:700, textAlign:'center'}}>{cant}</div>
-          <table className="table"><thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attività</th><th>Stato</th></tr></thead>
+          <table className="table"><thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attività</th></tr></thead>
             <tbody>
               {list.map(r=> (
                 <tr key={r.id}>
                   <td>{nameOf(r.user_id)}</td>
                   <td>{r.title}</td>
-                  <td>
-                    <span className="badge" style={{background:(r.stato==='done'?'var(--green)':'var(--gray)')}}>
-                      {r.stato==='done' ? 'completato' : 'da completare'}
-                    </span>
-                  </td>
                 </tr>
               ))}
             </tbody>
