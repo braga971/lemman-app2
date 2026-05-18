@@ -360,7 +360,7 @@ export default function Amministrazione({ db, profiles, refresh }){
   const [editingRapId, setEditingRapId] = useState(null)
   const [rapDraft, setRapDraft] = useState(null)
   // Commesse & Posizioni state
-  const [comm, setComm] = useState({ code:'', cantiere:'', descrizione:'', cantiere_binded:true })
+  const [comm, setComm] = useState({ code:'', cantiere:'', descrizione:'' })
   const [showArchivedCommesse, setShowArchivedCommesse] = useState(false)
   const [editingComm, setEditingComm] = useState(null)
   const [commDraft, setCommDraft] = useState(null)
@@ -378,6 +378,16 @@ export default function Amministrazione({ db, profiles, refresh }){
     ()=> showArchivedCommesse ? completedCommesse : activeCommesse,
     [completedCommesse, activeCommesse, showArchivedCommesse]
   )
+  const cantiereOptions = useMemo(()=>{
+    const map = new Map()
+    for (const c of (db.cantieri||[])){
+      if (c?.name) map.set(String(c.name), String(c.name))
+    }
+    for (const c of (db.commesse||[])){
+      if (c?.cantiere) map.set(String(c.cantiere), String(c.cantiere))
+    }
+    return [...map.values()].sort((a,b)=>a.localeCompare(b, 'it', { numeric:true, sensitivity:'base' }))
+  }, [db.cantieri, db.commesse])
 
   async function setStato(r, stato){
     const { error } = await supabase.from('rapportini').update({ stato }).eq('id', r.id)
@@ -417,11 +427,10 @@ export default function Amministrazione({ db, profiles, refresh }){
         commessa_id: rapDraft.commessa_id || null,
         posizione_id: rapDraft.posizione_id || null,
         descrizione: rapDraft.descrizione || null,
-        cantiere: rapDraft.cantiere || null,
+        cantiere: null,
       }
-      // auto-compila cantiere se binded alla commessa
       const comm = (db.commesse||[]).find(c=> String(c.id)===String(rapDraft.commessa_id))
-      if (comm?.cantiere_binded){ patch.cantiere = comm.cantiere || null }
+      patch.cantiere = comm?.cantiere || null
       const { error } = await supabase.from('rapportini').update(patch).eq('id', r.id)
       if (error) return alert(error.message)
       cancelEditRap(); refresh && refresh()
@@ -467,20 +476,16 @@ export default function Amministrazione({ db, profiles, refresh }){
             <input placeholder="Codice commessa" value={comm.code} onChange={e=>setComm({...comm, code:e.target.value})} />
             <select className="select" value={comm.cantiere} onChange={e=>setComm({...comm, cantiere:e.target.value})}>
               <option value="">- Seleziona cantiere esistente -</option>
-              {(db.cantieri||[]).map(c=> (<option key={c.id} value={c.name}>{c.name}</option>))}
+              {cantiereOptions.map(name=> (<option key={name} value={name}>{name}</option>))}
             </select>
           </div>
           <textarea placeholder="Descrizione" value={comm.descrizione} onChange={e=>setComm({...comm, descrizione:e.target.value})} />
-          <label style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}>
-            <input type="checkbox" checked={!!comm.cantiere_binded} onChange={e=>setComm({...comm, cantiere_binded:e.target.checked})} />
-            <span>Vincola cantiere alla commessa (auto-compila nel rapportino)</span>
-          </label>
           <div style={{marginTop:8}}>
             <button className="btn" onClick={async()=>{
               if(!comm.cantiere) return alert('Seleziona un cantiere esistente')
-              const { error } = await supabase.from('commesse').insert({ code:comm.code?.trim()||null, cantiere:comm.cantiere?.trim()||null, descrizione:comm.descrizione?.trim()||null, cantiere_binded: !!comm.cantiere_binded })
+              const { error } = await supabase.from('commesse').insert({ code:comm.code?.trim()||null, cantiere:comm.cantiere?.trim()||null, descrizione:comm.descrizione?.trim()||null, cantiere_binded: true })
               if (error) return alert(error.message)
-              setComm({ code:'', cantiere:'', descrizione:'', cantiere_binded:true }); refresh && refresh()
+              setComm({ code:'', cantiere:'', descrizione:'' }); refresh && refresh()
             }}><span style={{display:'inline-flex',gap:6,alignItems:'center'}}><Icon.Plus/> Crea commessa</span></button>
           </div>
 
@@ -490,7 +495,7 @@ export default function Amministrazione({ db, profiles, refresh }){
           </label>
 
           <table className="table" style={{marginTop:12}}>
-            <thead><tr><th>Codice</th><th>Cantiere</th><th>Descrizione</th><th>Stato</th><th>Bind</th><th></th></tr></thead>
+            <thead><tr><th>Codice</th><th>Cantiere</th><th>Descrizione</th><th>Stato</th><th></th></tr></thead>
             <tbody>
               {visibleCommesse.map(c=>{
                 const isEdit = editingComm===c.id
@@ -498,14 +503,18 @@ export default function Amministrazione({ db, profiles, refresh }){
                 return (
                   <tr key={c.id}>
                     <td>{isEdit? <input value={commDraft?.code ?? ''} onChange={e=>setCommDraft(v=>({...v, code:e.target.value}))}/> : (c.code||'-')}</td>
-                    <td>{isEdit? <input value={commDraft?.cantiere ?? ''} onChange={e=>setCommDraft(v=>({...v, cantiere:e.target.value}))}/> : (c.cantiere||'-')}</td>
+                    <td>{isEdit? (
+                      <select className="select" value={commDraft?.cantiere ?? ''} onChange={e=>setCommDraft(v=>({...v, cantiere:e.target.value}))}>
+                        <option value="">- Seleziona cantiere -</option>
+                        {cantiereOptions.map(name=> (<option key={name} value={name}>{name}</option>))}
+                      </select>
+                    ) : (c.cantiere||'-')}</td>
                     <td>{isEdit? <input value={commDraft?.descrizione ?? ''} onChange={e=>setCommDraft(v=>({...v, descrizione:e.target.value}))}/> : (c.descrizione||'-')}</td>
                     <td><span className="badge">{isArchived ? 'completata' : 'attiva'}</span></td>
-                    <td>{isEdit? <input type="checkbox" checked={!!(commDraft?.cantiere_binded ?? c.cantiere_binded)} onChange={e=>setCommDraft(v=>({...v, cantiere_binded:e.target.checked}))}/> : (c.cantiere_binded ? 'Si' : 'No')}</td>
                     <td style={{textAlign:'right'}}>
                       {isEdit ? (
                         <>
-                          <button className="btn" onClick={async()=>{ const row={...commDraft}; const { error } = await supabase.from('commesse').update({ code:row.code, cantiere:row.cantiere, descrizione:row.descrizione, cantiere_binded: !!row.cantiere_binded }).eq('id', c.id); if(error) return alert(error.message); setEditingComm(null); setCommDraft(null); refresh&&refresh() }}><Icon.Save style={{marginRight:6}}/> Salva</button>
+                          <button className="btn" onClick={async()=>{ const row={...commDraft}; if(!row.cantiere) return alert('Seleziona un cantiere esistente'); const { error } = await supabase.from('commesse').update({ code:row.code, cantiere:row.cantiere, descrizione:row.descrizione, cantiere_binded: true }).eq('id', c.id); if(error) return alert(error.message); setEditingComm(null); setCommDraft(null); refresh&&refresh() }}><Icon.Save style={{marginRight:6}}/> Salva</button>
                           <button className="btn" onClick={()=>{ setEditingComm(null); setCommDraft(null) }}>Annulla</button>
                         </>
                       ): (

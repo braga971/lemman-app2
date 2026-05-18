@@ -21,6 +21,12 @@ const SLOTS=[
   { key:'GIORNALIERO', label:'GIORNALIERO' },
 ]
 
+function isShiftEmployee(profile){
+  const role = String(profile?.role || 'user').toLowerCase()
+  const email = String(profile?.email || '').toLowerCase()
+  return role !== 'archived' && role !== 'mensa' && email !== 'mensa@lemman.it'
+}
+
 export default function TurniSettimanaliView({ isManager=false }){
   const user = useAuth()
   const [offset,setOffset]=useState(0)
@@ -39,7 +45,7 @@ export default function TurniSettimanaliView({ isManager=false }){
   useEffect(()=>{ (async()=>{
     try{
       const ppl=await supabase.from('profiles').select('id,full_name,email,role').order('full_name',{ascending:true});
-      if(!ppl.error) setProfiles((ppl.data||[]).filter(p=> (p.role||'user') !== 'archived'))
+      if(!ppl.error) setProfiles((ppl.data||[]).filter(isShiftEmployee))
       const res=await supabase.from('cantieri').select('id,name').order('name')
       if(!res.error && (res.data||[]).length){ setCantieri(res.data||[]); if(!activeCantiere) setActiveCantiere(String(res.data[0].id)) }
       else { const alt=await supabase.from('commesse').select('cantiere'); const set=Array.from(new Set((alt.data||[]).map(x=>x.cantiere).filter(Boolean))).map((name,i)=>({id:String(i+1),name})); setCantieri(set); if(!activeCantiere && set.length) setActiveCantiere(String(set[0].id)) }
@@ -59,10 +65,10 @@ export default function TurniSettimanaliView({ isManager=false }){
         try{
           const resp = await supabase.functions.invoke('get-shift-profiles', { body: { site: name, week_start: from } })
           const profs = (resp?.data?.profiles)||[]
-          if (Array.isArray(profs) && profs.length){ currentProfiles = profs; setProfiles(profs.filter(p=> (p.role||'user')!=='archived')) }
+          if (Array.isArray(profs) && profs.length){ currentProfiles = profs; setProfiles(profs.filter(isShiftEmployee)) }
         }catch(_){ /* ignore */ }
       }
-      const allowed = new Set((currentProfiles||[]).filter(p=> (p.role||'user')!=='archived').map(p=>p.id))
+      const allowed = new Set((currentProfiles||[]).filter(isShiftEmployee).map(p=>p.id))
       const norm={}; for(const s of SLOTS){ const v=raw[s.key]; const arr=(v?.users||[]).filter(Boolean); norm[s.key]={users: arr.filter(u=> allowed.size? allowed.has(typeof u==='string'? u : (u?.id||'')) : true)} }
       // Applica solo se questo refresh è ancora l'ultimo richiesto
       if (seq === loadSeqRef.current) setValues(norm)

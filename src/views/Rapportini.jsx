@@ -12,6 +12,10 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const [myWeekLoading,setMyWeekLoading]=useState(false)
   const sortedCommesse = useMemo(()=> sortCommesseByCantiere(db.commesse || []), [db.commesse])
   const activeCommesse = useMemo(()=> sortedCommesse.filter(c=>!c.archived_at), [sortedCommesse])
+  const selectedCommessa = useMemo(
+    ()=> (db.commesse||[]).find(x=>String(x.id)===String(form.commessa_id)) || null,
+    [db.commesse, form.commessa_id]
+  )
   const pos = useMemo(()=> (db.posizioni||[]).filter(p=>p.commessa_id===form.commessa_id), [db.posizioni, form.commessa_id])
   const weekEnd = new Date(); weekEnd.setHours(23,59,59,999)
   const weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() - 6); weekStart.setHours(0,0,0,0)
@@ -22,10 +26,8 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const weekTotal = dailyTotals.reduce((sum, row)=> sum + row.hours, 0)
 
   useEffect(()=>{
-    // auto-compila cantiere quando cambia commessa
-    const c = (db.commesse||[]).find(x=>x.id===form.commessa_id)
-    if (c && c.cantiere_binded){ setForm(f=>({ ...f, cantiere: c.cantiere || '' })) }
-  }, [form.commessa_id, db.commesse])
+    setForm(f=>({ ...f, cantiere: selectedCommessa?.cantiere || '' }))
+  }, [selectedCommessa])
 
   async function loadMyWeekRapportini(){
     setMyWeekLoading(true)
@@ -78,7 +80,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     if (!form.ore || Number(form.ore) <= 0) missing.push('ore')
     if (!form.commessa_id) missing.push('commessa')
     if (!form.posizione_id) missing.push('posizione')
-    if (!form.cantiere || String(form.cantiere).trim()==='') missing.push('cantiere')
+    if (!selectedCommessa?.cantiere || String(selectedCommessa.cantiere).trim()==='') missing.push('cantiere della commessa')
     if (!form.descrizione || String(form.descrizione).trim()==='') missing.push('descrizione')
     if (missing.length){
       alert('Per inserire il rapportino devi compilare: ' + missing.join(', '))
@@ -130,7 +132,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     const { error } = await supabase.from('rapportini').insert({
       user_id: targetUserId, data: form.data, ore: newHours,
       commessa_id: form.commessa_id || null, posizione_id: form.posizione_id || null,
-      cantiere: form.cantiere || null, descrizione: form.descrizione || null,
+      cantiere: selectedCommessa?.cantiere || null, descrizione: form.descrizione || null,
       photo_url, photo_path
     })
     if (error) alert(error.message); else {
@@ -165,7 +167,9 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
             <option value="">- Posizione -</option>
             {pos.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}
           </select>
-          <input placeholder="Cantiere" value={form.cantiere} onChange={e=>setForm({...form, cantiere:e.target.value})} disabled={(db.commesse||[]).find(c=>c.id===form.commessa_id)?.cantiere_binded}/>
+          <div className="input" style={{display:'flex',alignItems:'center',minHeight:42}}>
+            {selectedCommessa?.cantiere ? `Cantiere: ${selectedCommessa.cantiere}` : 'Cantiere automatico dalla commessa'}
+          </div>
           <input placeholder="Descrizione attività" value={form.descrizione} onChange={e=>setForm({...form, descrizione:e.target.value})}/>
         </div>
         <div className="grid2" style={{marginTop:8}}>
@@ -313,7 +317,20 @@ function ManagerRapportiniTable({ db, profiles, refresh }){
   }
   function startEditRap(r){ setEditingRapId(r.id); setRapDraft({...r}) }
   function cancelEditRap(){ setEditingRapId(null); setRapDraft(null) }
-  async function saveEditRap(r){ const row={...rapDraft}; const { error } = await supabase.from('rapportini').update({ data:row.data, ore:row.ore, descrizione:row.descrizione, commessa_id:row.commessa_id||null, posizione_id:row.posizione_id||null }).eq('id', r.id); if(error) return alert(error.message); cancelEditRap(); refresh&&refresh() }
+  async function saveEditRap(r){
+    const row={...rapDraft}
+    const commessa = (db.commesse||[]).find(c=> String(c.id)===String(row.commessa_id))
+    const { error } = await supabase.from('rapportini').update({
+      data:row.data,
+      ore:row.ore,
+      descrizione:row.descrizione,
+      commessa_id:row.commessa_id||null,
+      posizione_id:row.posizione_id||null,
+      cantiere: commessa?.cantiere || null
+    }).eq('id', r.id)
+    if(error) return alert(error.message)
+    cancelEditRap(); refresh&&refresh()
+  }
 
   return (
     <table className="table">
