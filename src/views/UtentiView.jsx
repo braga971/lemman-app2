@@ -52,7 +52,17 @@ export default function UtentiView(){
       if (error) throw error
       // Inserisci/aggiorna profilo lato DB (in caso l'edge function non lo faccia)
       if (data?.user_id){
-        await supabase.from('profiles').upsert({ id: data.user_id, email: form.email.trim(), full_name: form.full_name?.trim() || null, matricola: form.matricola ? Number(form.matricola) : null, role: form.role || 'user' })
+        const profilePayload = {
+          id: data.user_id,
+          email: form.email.trim(),
+          full_name: form.full_name?.trim() || null,
+          matricola: matricolaValue ? Number(matricolaValue) : null,
+          role: form.role || 'user'
+        }
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert(profilePayload, { onConflict: 'id' })
+        if (profileError) throw profileError
       }
       setForm({ email:'', password:'', full_name:'', matricola:'', role:'user' })
       await load()

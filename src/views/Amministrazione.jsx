@@ -18,6 +18,14 @@ function parseStoragePublicUrl(url){
   }catch(e){ return null }
 }
 
+function sortCommesseByCantiere(commesse){
+  return [...commesse].sort((a,b)=>{
+    const cantiereCompare = String(a.cantiere || '').localeCompare(String(b.cantiere || ''), 'it', { numeric:true, sensitivity:'base' })
+    if (cantiereCompare !== 0) return cantiereCompare
+    return String(a.code || '').localeCompare(String(b.code || ''), 'it', { numeric:true, sensitivity:'base' })
+  })
+}
+
 export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const [data, setData] = useState(new Date().toISOString().slice(0,10))
   const [cantieri, setCantieri] = useState([])
@@ -365,7 +373,7 @@ export default function Amministrazione({ db, profiles, refresh }){
   const [editingPos, setEditingPos] = useState(null)
   const [posDraft, setPosDraft] = useState(null)
   const commesseByCreatedAt = useMemo(
-    ()=> [...(db.commesse||[])].sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0)),
+    ()=> sortCommesseByCantiere(db.commesse||[]),
     [db.commesse]
   )
   const activeCommesse = useMemo(()=> commesseByCreatedAt.filter(c=>!c.archived_at), [commesseByCreatedAt])

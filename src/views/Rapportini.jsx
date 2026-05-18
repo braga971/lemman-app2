@@ -7,22 +7,48 @@ import { getSignedUrl } from '../_integration/signedUrl.js'
 export default function Rapportini({ user, db, refresh, isManager=false }){
   const [form,setForm]=useState({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null })
   const [forUser,setForUser]=useState(user.id)
-  const activeCommesse = useMemo(()=> (db.commesse||[]).filter(c=>!c.archived_at), [db.commesse])
+  const [myWeekRows,setMyWeekRows]=useState([])
+  const [myWeekError,setMyWeekError]=useState('')
+  const [myWeekLoading,setMyWeekLoading]=useState(false)
+  const sortedCommesse = useMemo(()=> sortCommesseByCantiere(db.commesse || []), [db.commesse])
+  const activeCommesse = useMemo(()=> sortedCommesse.filter(c=>!c.archived_at), [sortedCommesse])
   const pos = useMemo(()=> (db.posizioni||[]).filter(p=>p.commessa_id===form.commessa_id), [db.posizioni, form.commessa_id])
-  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7)); weekStart.setHours(0,0,0,0)
-  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6); weekEnd.setHours(23,59,59,999)
+  const weekEnd = new Date(); weekEnd.setHours(23,59,59,999)
+  const weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() - 6); weekStart.setHours(0,0,0,0)
   const weekStartText = formatDateInput(weekStart)
   const weekEndText = formatDateInput(weekEnd)
-  const mine = (db.rapportini||[]).filter(r=>{
-    const d = String(r.data || '').slice(0, 10)
-    return String(r.user_id) === String(user.id) && d >= weekStartText && d <= weekEndText
-  })
+  const mine = myWeekRows
 
   useEffect(()=>{
     // auto-compila cantiere quando cambia commessa
     const c = (db.commesse||[]).find(x=>x.id===form.commessa_id)
     if (c && c.cantiere_binded){ setForm(f=>({ ...f, cantiere: c.cantiere || '' })) }
   }, [form.commessa_id, db.commesse])
+
+  async function loadMyWeekRapportini(){
+    setMyWeekLoading(true)
+    setMyWeekError('')
+    const { data, error } = await supabase
+      .from('rapportini')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('data', weekStartText)
+      .lte('data', weekEndText)
+      .order('data', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error){
+      setMyWeekRows([])
+      setMyWeekError(error.message)
+    } else {
+      setMyWeekRows(data || [])
+    }
+    setMyWeekLoading(false)
+  }
+
+  useEffect(()=>{
+    loadMyWeekRapportini()
+  }, [user.id, weekStartText, weekEndText])
 
   async function handleFile(e){
     const file = e.target.files?.[0] || null;
@@ -50,6 +76,32 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       alert('Per inserire il rapportino devi compilare: ' + missing.join(', '))
       return
     }
+
+    const targetUserId = forUser || user.id
+    const newHours = Number(form.ore || 0)
+    const { data: sameDayRows, error: checkError } = await supabase
+      .from('rapportini')
+      .select('id,ore,posizione_id')
+      .eq('user_id', targetUserId)
+      .eq('data', form.data)
+
+    if (checkError){
+      alert('Non riesco a controllare i rapportini già inseriti: ' + checkError.message)
+      return
+    }
+
+    const samePositionExists = (sameDayRows || []).some(r=> String(r.posizione_id || '') === String(form.posizione_id || ''))
+    if (samePositionExists){
+      alert('Hai già inserito un rapportino per questa posizione in questa data. Puoi inserire più rapportini nello stesso giorno, ma non sulla stessa posizione.')
+      return
+    }
+
+    const dayHours = (sameDayRows || []).reduce((sum, r)=> sum + Number(r.ore || 0), 0)
+    if (dayHours + newHours > 20){
+      alert(`Ore giornaliere troppo alte: hai già ${dayHours} ore inserite in questa data. Con questo rapportino arriveresti a ${dayHours + newHours} ore.`)
+      return
+    }
+
     let photo_url = null
     let photo_path = null
     if (form.file){
@@ -62,7 +114,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       }
     }
     const { error } = await supabase.from('rapportini').insert({
-      user_id: forUser || user.id, data: form.data, ore: Number(form.ore||0),
+      user_id: targetUserId, data: form.data, ore: newHours,
       commessa_id: form.commessa_id || null, posizione_id: form.posizione_id || null,
       cantiere: form.cantiere || null, descrizione: form.descrizione || null,
       photo_url, photo_path
@@ -70,6 +122,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     if (error) alert(error.message); else {
       setForm({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null })
       await (refresh && refresh())
+      await loadMyWeekRapportini()
     }
   }
 
@@ -108,10 +161,18 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       </section>
 
       <section className="card section" style={{marginTop:16}}>
-        <h3><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.List/></span> I miei rapportini (settimana corrente)</h3>
+        <h3><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.List/></span> I miei rapportini (ultimi 7 giorni)</h3>
+        <div className="muted" style={{marginBottom:8}}>Dal {weekStartText} al {weekEndText}</div>
+        {myWeekError && <div className="alert danger" style={{marginBottom:12}}>{myWeekError}</div>}
         <table className="table">
           <thead><tr><th>Data</th><th>Commessa</th><th>Posizione</th><th>Cantiere</th><th>Ore</th><th>Stato</th></tr></thead>
           <tbody>
+            {myWeekLoading && (
+              <tr><td colSpan="6" style={{textAlign:'center', opacity:0.7}}>Caricamento...</td></tr>
+            )}
+            {!myWeekLoading && mine.length===0 && !myWeekError && (
+              <tr><td colSpan="6" style={{textAlign:'center', opacity:0.7}}>Nessun rapportino questa settimana</td></tr>
+            )}
             {mine.map(r=>(
               <tr key={r.id}>
                 <td>{r.data}</td>
@@ -140,6 +201,14 @@ function formatDateInput(date){
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+function sortCommesseByCantiere(commesse){
+  return [...commesse].sort((a,b)=>{
+    const cantiereCompare = String(a.cantiere || '').localeCompare(String(b.cantiere || ''), 'it', { numeric:true, sensitivity:'base' })
+    if (cantiereCompare !== 0) return cantiereCompare
+    return String(a.code || '').localeCompare(String(b.code || ''), 'it', { numeric:true, sensitivity:'base' })
+  })
 }
 
 function ManagerRapportiniTable({ db, profiles, refresh }){
@@ -202,7 +271,7 @@ function ManagerRapportiniTable({ db, profiles, refresh }){
               <td>{isEdit ? (
                 <select className="input" value={rapDraft?.commessa_id||''} onChange={e=>setRapDraft(v=>({...v, commessa_id:e.target.value, posizione_id:''}))}>
                   <option value="">-</option>
-                  {(db.commesse||[]).map(c=>(<option key={c.id} value={String(c.id)}>{c.code||c.descrizione||c.id}</option>))}
+                  {sortCommesseByCantiere(db.commesse||[]).map(c=>(<option key={c.id} value={String(c.id)}>{c.cantiere ? `${c.cantiere} - ` : ''}{c.code||c.descrizione||c.id}</option>))}
                 </select>
               ) : ((db.commesse||[]).find(c=>c.id===r.commessa_id)?.code||'-')}</td>
               <td>{isEdit ? (
