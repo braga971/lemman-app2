@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { supabase } from '../_integration/supabaseClient.js'
 import * as Icon from '../components/Icons.jsx'
 import { RiepilogoAttivita } from './Amministrazione.jsx'
 
@@ -23,7 +22,6 @@ export default function Home({ user, profile, db }){
         .replace(/^3.*TURNO/,'3° TURNO')
     }catch(_){ return String(str||'') }
   }
-  async function toggleTask(t){ const next = t.stato==='done'?'todo':'done'; await supabase.from('tasks').update({ stato: next }).eq('id', t.id) }
   return (
     <div className="container" style={{paddingTop:16}}>
       <div className="card section" style={{marginBottom:12}}>
@@ -49,9 +47,7 @@ export default function Home({ user, profile, db }){
                         <ul style={{margin:0,paddingLeft:16}}>
                           {list.map(t=>(
                             <li key={t.id} style={{display:'flex',alignItems:'center',gap:8, margin:'4px 0'}}>
-                              <button className="btn" onClick={()=>toggleTask(t)}>{t.stato==='done' ? '✓' : '○'}</button>
-                              <span style={{textDecoration: t.stato==='done'?'line-through':'none'}}>{viewTitle(t.title)}</span>
-                              <span className="badge" style={{marginLeft:6}}>{t.stato==='done' ? 'fatta' : 'da completare'}</span>
+                              <span>{viewTitle(t.title)}</span>
                               {t.photo_url && <a href={t.photo_url} target="_blank" rel="noreferrer" style={{marginLeft:8}}>foto</a>}
                             </li>
                           ))}

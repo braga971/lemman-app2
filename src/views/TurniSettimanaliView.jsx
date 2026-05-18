@@ -237,7 +237,9 @@ export default function TurniSettimanaliView({ isManager=false }){
             )}
           </>
         )}
-        <div style={{marginLeft:'auto'}}><button className="btn" onClick={()=>window.print()}>Stampa</button></div>
+        {isManager && (
+          <div style={{marginLeft:'auto'}}><button className="btn" onClick={()=>window.print()}>Stampa</button></div>
+        )}
       </div>
 
       {isManager && (

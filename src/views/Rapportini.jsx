@@ -18,6 +18,8 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const weekStartText = formatDateInput(weekStart)
   const weekEndText = formatDateInput(weekEnd)
   const mine = myWeekRows
+  const dailyTotals = useMemo(()=> buildDailyTotals(mine), [mine])
+  const weekTotal = dailyTotals.reduce((sum, row)=> sum + row.hours, 0)
 
   useEffect(()=>{
     // auto-compila cantiere quando cambia commessa
@@ -53,6 +55,12 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   async function handleFile(e){
     const file = e.target.files?.[0] || null;
     if (!file) { setForm(f=>({...f, file:null})); return }
+    if (!isImageFile(file)){
+      alert('Puoi caricare solo foto o immagini.')
+      e.target.value = ''
+      setForm(f=>({...f, file:null}))
+      return
+    }
     try{
       const compressed = await imageCompression(file, { maxSizeMB: 0.8, maxWidthOrHeight: 1600, useWebWorker: true });
       const outFile = new File([compressed], file.name.replace(/(\.[a-z0-9]+)$/i, '_compressed$1'), { type: compressed.type });
@@ -92,21 +100,27 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
 
     const samePositionExists = (sameDayRows || []).some(r=> String(r.posizione_id || '') === String(form.posizione_id || ''))
     if (samePositionExists){
-      alert('Hai già inserito un rapportino per questa posizione in questa data. Puoi inserire più rapportini nello stesso giorno, ma non sulla stessa posizione.')
+      const posName = (db.posizioni||[]).find(p=> String(p.id) === String(form.posizione_id))?.name || 'selezionata'
+      alert(`Rapportino già presente: in data ${form.data} hai già inserito un rapportino per la posizione "${posName}". Puoi inserire più rapportini nello stesso giorno, ma non sulla stessa posizione.`)
       return
     }
 
     const dayHours = (sameDayRows || []).reduce((sum, r)=> sum + Number(r.ore || 0), 0)
     if (dayHours + newHours > 20){
-      alert(`Ore giornaliere troppo alte: hai già ${dayHours} ore inserite in questa data. Con questo rapportino arriveresti a ${dayHours + newHours} ore.`)
+      alert(`Ore giornaliere troppo alte per il ${form.data}: hai già ${formatHours(dayHours)} ore inserite. Con questo rapportino arriveresti a ${formatHours(dayHours + newHours)} ore. Il limite massimo è 20 ore.`)
       return
     }
 
     let photo_url = null
     let photo_path = null
     if (form.file){
+      if (!isImageFile(form.file)){
+        alert('Il file allegato non e una foto. Seleziona solo immagini.')
+        setForm(f=>({...f, file:null}))
+        return
+      }
       const path = `${user.id}/${Date.now()}_${form.file.name}`
-      const up = await supabase.storage.from('rapportini-foto').upload(path, form.file, { cacheControl:'3600', upsert:false })
+      const up = await supabase.storage.from('rapportini-foto').upload(path, form.file, { cacheControl:'3600', upsert:false, contentType: form.file.type || 'image/jpeg' })
       if (!up.error){
         const { data } = await supabase.storage.from('rapportini-foto').getPublicUrl(path)
         photo_url = data.publicUrl
@@ -164,6 +178,27 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
         <h3><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.List/></span> I miei rapportini (ultimi 7 giorni)</h3>
         <div className="muted" style={{marginBottom:8}}>Dal {weekStartText} al {weekEndText}</div>
         {myWeekError && <div className="alert danger" style={{marginBottom:12}}>{myWeekError}</div>}
+        {!myWeekLoading && dailyTotals.length > 0 && (
+          <div className="table-responsive" style={{marginBottom:12}}>
+            <table className="table">
+              <thead><tr><th>Giorno</th><th>Rapportini</th><th>Ore totali</th></tr></thead>
+              <tbody>
+                {dailyTotals.map(row=>(
+                  <tr key={row.date}>
+                    <td>{row.date}</td>
+                    <td>{row.count}</td>
+                    <td><strong>{formatHours(row.hours)}</strong></td>
+                  </tr>
+                ))}
+                <tr>
+                  <td><strong>Totale ultimi 7 giorni</strong></td>
+                  <td>{mine.length}</td>
+                  <td><strong>{formatHours(weekTotal)}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
         <table className="table">
           <thead><tr><th>Data</th><th>Commessa</th><th>Posizione</th><th>Cantiere</th><th>Ore</th><th>Stato</th></tr></thead>
           <tbody>
@@ -203,12 +238,38 @@ function formatDateInput(date){
   return `${y}-${m}-${d}`
 }
 
+function isImageFile(file){
+  if (!file) return false
+  const type = String(file.type || '').toLowerCase()
+  const name = String(file.name || '').toLowerCase()
+  const validType = type.startsWith('image/')
+  const validExt = /\.(jpg|jpeg|png|webp|gif|heic|heif|bmp|tif|tiff)$/i.test(name)
+  return validType && validExt
+}
+
 function sortCommesseByCantiere(commesse){
   return [...commesse].sort((a,b)=>{
     const cantiereCompare = String(a.cantiere || '').localeCompare(String(b.cantiere || ''), 'it', { numeric:true, sensitivity:'base' })
     if (cantiereCompare !== 0) return cantiereCompare
     return String(a.code || '').localeCompare(String(b.code || ''), 'it', { numeric:true, sensitivity:'base' })
   })
+}
+
+function buildDailyTotals(rows){
+  const map = new Map()
+  for (const r of rows || []){
+    const date = String(r.data || '').slice(0, 10)
+    if (!date) continue
+    const current = map.get(date) || { date, count: 0, hours: 0 }
+    current.count += 1
+    current.hours += Number(r.ore || 0)
+    map.set(date, current)
+  }
+  return [...map.values()].sort((a,b)=> b.date.localeCompare(a.date))
+}
+
+function formatHours(value){
+  return Number(value || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
 function ManagerRapportiniTable({ db, profiles, refresh }){

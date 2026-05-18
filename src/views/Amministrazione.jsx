@@ -48,6 +48,7 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const cantiereRef = useRef(cantiere)
   useEffect(()=>{ cantiereRef.current = cantiere }, [cantiere])
   const autoTimersRef = useRef(new Map())
+  const editingRef = useRef(false)
   function displayShift(s){
     try{
       return String(s)
@@ -78,19 +79,19 @@ function setRow(shift, i, patch){
   setRowsByShift(v=> ({ ...v, [shift]: v[shift].map((r,idx)=> idx===i ? ({...r, ...patch}) : r) }))
 }
 
-function scheduleAutoSave(shift, i){
+function scheduleAutoSave(shift, i, rowSnapshot=null){
   try{
     const key = `${shift}:${i}`
     const timers = autoTimersRef.current
     if (timers.has(key)) clearTimeout(timers.get(key))
     const t = setTimeout(()=>{
       const rows = rowsRef.current || {}
-      const row = rows?.[shift]?.[i]
+      const row = rowSnapshot || rows?.[shift]?.[i]
       const cantieriNow = cantieriRef.current || []
       const cantiereNow = cantiereRef.current
       const cName = (cantieriNow.find(c=> String(c.id)===String(cantiereNow))||{}).name || null
       const hasReq = !!cName && !!row?.user_id && !!String(row?.title||'').trim()
-      if (hasReq){ saveRow(shift, i) }
+      if (hasReq){ saveRow(shift, i, row) }
       timers.delete(key)
     }, 600)
     timers.set(key, t)
@@ -210,7 +211,7 @@ function scheduleAutoSave(shift, i){
         if (ins.error) return alert(ins.error.message)
         setRow(shift, i, { task_id: ins.data.id, file:null })
       }
-      onDone && onDone()
+      if (!editingRef.current) onDone && onDone()
     }catch(e){ alert(String(e?.message||e)) }
   }
 
@@ -289,17 +290,17 @@ function scheduleAutoSave(shift, i){
                 {(rowsByShift[shift]||[]) .map((r,i)=>(
                   <tr key={i} data-blank={!r.user_id && !r.title ? '1':'0'}>
                     <td>
-                      <select className="select" value={r.user_id} onChange={e=>{ setRow(shift,i,{ user_id:e.target.value }); scheduleAutoSave(shift,i) }}>
+                      <select className="select" value={r.user_id} onChange={e=>{ const next = { ...(rowsByShift[shift][i]||{}), user_id:e.target.value }; setRow(shift,i,{ user_id:e.target.value }); scheduleAutoSave(shift,i,next) }}>
                         <option value="">-</option>
                         {profiles.map(p=> <option key={p.id} value={p.id}>{p.full_name||p.email}</option>)}
                       </select>
                     </td>
                     <td>
-                      <textarea className="input" rows={2} value={r.title} onChange={e=>{ setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i) }} placeholder="Descrizione Attività"></textarea>
+                      <textarea className="input" rows={2} value={r.title} onFocus={()=>{ editingRef.current = true }} onBlur={()=>{ editingRef.current = false }} onChange={e=>{ const next = { ...(rowsByShift[shift][i]||{}), title:e.target.value }; setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i,next) }} placeholder="Descrizione Attività"></textarea>
                     </td>
                     <td className="no-print m-hide">
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <input type="file" accept="image/*" onChange={e=>{ const f = e.target.files?.[0]||null; const next = { ...(rowsByShift[shift][i]||{}), file:f }; setRow(shift,i,{ file:f }); if (f && cantiereName && next.user_id && String(next.title||'').trim()){ saveRow(shift,i,next) } else { scheduleAutoSave(shift,i) } }} />
+                        <input type="file" accept="image/*" onChange={e=>{ const f = e.target.files?.[0]||null; const next = { ...(rowsByShift[shift][i]||{}), file:f }; setRow(shift,i,{ file:f }); if (f && cantiereName && next.user_id && String(next.title||'').trim()){ saveRow(shift,i,next) } else { scheduleAutoSave(shift,i,next) } }} />
                         {r.task_id && taskPhotos[r.task_id] ? (<a className="btn" href={taskPhotos[r.task_id]} target="_blank" rel="noreferrer">apri</a>) : null}
                       </div>
                     </td>

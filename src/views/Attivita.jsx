@@ -26,7 +26,7 @@ export default function Attivita({ user, db, refresh, isManager=false }){
     }catch(err){ console.error('viewAndAutoDelete error', err); alert('Impossibile aprire la foto') }
   }
 
-  const my = (db.tasks||[]).filter(t=>t.user_id===user.id && t.stato!=='done').sort((a,b)=>a.data.localeCompare(b.data))
+  const my = (db.tasks||[]).filter(t=>t.user_id===user.id).sort((a,b)=>a.data.localeCompare(b.data))
   const [signed, setSigned] = useState({})
   useEffect(()=>{
     (async()=>{
@@ -56,13 +56,12 @@ export default function Attivita({ user, db, refresh, isManager=false }){
     })()
   }, [my.map(t=>`${t.id}:${t.photo_path||''}:${t.photo_expires_at||''}`).join('|')])
 
-  async function toggle(t){ await supabase.from('tasks').update({ stato: t.stato==='done'?'todo':'done' }).eq('id', t.id); refresh() }
   return (
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
         <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Attività assegnate</h3>
         <table className="table">
-          <thead><tr><th>Data</th><th>Titolo</th><th>Foto</th><th>Stato</th><th></th></tr></thead>
+          <thead><tr><th>Data</th><th>Titolo</th><th>Foto</th></tr></thead>
           <tbody>
             {my.map(t=>(
               <tr key={t.id}>
@@ -71,12 +70,6 @@ export default function Attivita({ user, db, refresh, isManager=false }){
                 <td>{(signed[t.id]) ? (
                   <button className="btn" onClick={()=>viewAndAutoDelete(t, signed[t.id])}>apri</button>
                 ) : '—'}</td>
-                <td>
-                  <span className="badge">
-                    {t.stato==='done' ? 'fatta' : 'da completare'}
-                  </span>
-                </td>
-                <td><button className="btn" onClick={()=>toggle(t)}>{t.stato==='done'?'Segna da fare':'Completa'}</button></td>
               </tr>
             ))}
           </tbody>
