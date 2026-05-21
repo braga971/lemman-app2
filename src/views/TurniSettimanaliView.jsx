@@ -180,6 +180,8 @@ export default function TurniSettimanaliView({ isManager=false }){
   function onDragOver(e){ e.preventDefault() }
 
   const cantiereName=(cantieri.find(c=> String(c.id)===String(activeCantiere))||{}).name||''
+  const currentWeekValue = weekValueFromDate(new Date())
+  const nextWeekValue = weekValueFromDate(addDays(new Date(), 7))
   const assignedUids=useMemo(()=>{ const s=new Set(); for(const k of Object.keys(values)){ for(const u of (values[k]?.users||[])) s.add(userId(u)) } return s }, [values])
   const unassigned=useMemo(()=> (profiles||[]).filter(p=> !assignedUids.has(p.id) && !assignedElsewhere.has(p.id)), [profiles, assignedUids, assignedElsewhere])
   const displayName=p=> p?.full_name||p?.email||p?.id
@@ -205,8 +207,8 @@ export default function TurniSettimanaliView({ isManager=false }){
       <h2><Icon.Calendar style={{marginRight:6}}/> Turni settimanali {cantiereName ? (<span className="muted" style={{marginLeft:8, fontWeight:600}}>- {cantiereName}</span>) : null}</h2>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
         <span>Settimana:</span>
-        <button className={"btn" + (offset===0?' primary':'')} onClick={()=>{ const w=weekValueFromDate(new Date()); setWeekValue(w); setOffset(0) }}>Questa</button>
-        <button className={"btn" + (offset===1?' primary':'')} onClick={()=>{ const w=weekValueFromDate(addDays(new Date(),7)); setWeekValue(w); setOffset(0) }}>Prossima</button>
+        <button className={"btn" + (weekValue===currentWeekValue?' primary':'')} onClick={()=>{ setWeekValue(currentWeekValue); setOffset(0) }}>Questa</button>
+        <button className={"btn" + (weekValue===nextWeekValue?' primary':'')} onClick={()=>{ setWeekValue(nextWeekValue); setOffset(0) }}>Prossima</button>
         {isManager && (<>
           <label style={{marginLeft:12}}>Vai a:</label>
           <input type="week" value={weekValue} onChange={e=>{ setWeekValue(e.target.value); setOffset(0) }} />
