@@ -114,6 +114,7 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 /* Toasts */
 .toast-container{ position:fixed; top:64px; right:16px; z-index:50; display:flex; flex-direction:column; gap:8px }
 .toast{ background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:0 8px 20px rgba(0,0,0,0.2); min-width:240px }
+.refresh-indicator{ position:fixed; top:calc(var(--nav-h, 56px) + 8px); left:50%; transform:translateX(-50%); z-index:10002; background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:999px; padding:8px 14px; box-shadow:0 8px 20px rgba(0,0,0,0.18); font-size:13px; font-weight:700 }
 
 /* Search overlay */
 .search-overlay{ position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:10001; display:flex; align-items:flex-start; justify-content:center; padding-top:80px }

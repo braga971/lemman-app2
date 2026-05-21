@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Navbar from './components/Navbar.jsx'
 import Login from './Login.jsx'
 import { useAuth, useProfile } from './_integration/hooks.js'
@@ -109,13 +109,52 @@ export default function App(){
     user_messages: qUserMessages?.data||[],
     profiles: qProfiles?.data||[],
   }
-  const refresh = ()=> {
+  const [refreshing,setRefreshing] = useState(false)
+  const refresh = useCallback(async()=> {
+    if (refreshing) return
+    setRefreshing(true)
     try{
-      return queryClient.invalidateQueries({ predicate: ()=> true })
+      await queryClient.invalidateQueries({ predicate: ()=> true })
+      await queryClient.refetchQueries({ type:'active' })
     } catch(_){
-      return Promise.resolve()
+      /* ignore */
+    } finally {
+      setTimeout(()=>setRefreshing(false), 350)
     }
-  }
+  }, [queryClient, refreshing])
+
+  useEffect(()=>{
+    if (!user) return
+    let startY = null
+    let pulling = false
+    function isEditableTarget(target){
+      const tag = String(target?.tagName || '').toLowerCase()
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable
+    }
+    function onTouchStart(e){
+      if (window.scrollY > 0 || isEditableTarget(e.target)) return
+      startY = e.touches?.[0]?.clientY ?? null
+      pulling = false
+    }
+    function onTouchMove(e){
+      if (startY == null || window.scrollY > 0) return
+      const y = e.touches?.[0]?.clientY ?? startY
+      pulling = y - startY > 85
+    }
+    function onTouchEnd(){
+      if (pulling) refresh()
+      startY = null
+      pulling = false
+    }
+    window.addEventListener('touchstart', onTouchStart, { passive:true })
+    window.addEventListener('touchmove', onTouchMove, { passive:true })
+    window.addEventListener('touchend', onTouchEnd, { passive:true })
+    return ()=>{
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [user, refresh])
 
   // sync UI tab with URL
   useEffect(()=>{
@@ -182,7 +221,10 @@ export default function App(){
         isManager={isManager}
         onSearch={onSearch}
         onOpenChangePassword={()=>setShowChangePwd(true)}
+        onRefresh={refresh}
+        refreshing={refreshing}
       />
+      {refreshing && <div className="refresh-indicator">Aggiornamento dati...</div>}
       <div className='toast-container'>{toasts.map(t=> <div key={t.id} className='toast'>{t.msg}</div>)}</div>
       <ChangePasswordModal isOpen={showChangePwd} onClose={()=>setShowChangePwd(false)} user={user} onSuccess={msg=>pushToast(msg)} />
       {/* Pannello notifiche rimosso */}

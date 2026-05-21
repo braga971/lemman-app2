@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import * as Icon from './Icons.jsx'
 
-export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, onOpenChangePassword }){
+export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, onOpenChangePassword, onRefresh, refreshing=false }){
   const [menuOpen,setMenuOpen] = useState(false)
   const menuRef = useRef(null)
   const navRef = useRef(null)
@@ -164,6 +164,11 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
             <input placeholder="Cerca..." onKeyDown={(e)=>{ if(e.key==='Enter' && onSearch) onSearch(e.target.value) }} style={{borderRadius:999,padding:'6px 10px',border:'none',outline:'none'}} />
           </div>
           {/* Notifiche rimosse */}
+          <button className="tab" onClick={onRefresh} disabled={refreshing} title="Ricarica pagina">
+            <span style={{display:'inline-flex', alignItems:'center', gap:6}}>
+              <Icon.RefreshCw /> {refreshing ? 'Aggiorno...' : 'Ricarica'}
+            </span>
+          </button>
           <button className="tab" onClick={()=> setTheme(t=> t==='dark'?'light':'dark')} title={theme==='dark'?'Tema chiaro':'Tema scuro'}>
             {theme==='dark' ? <Icon.Sun/> : <Icon.Moon/>}
           </button>

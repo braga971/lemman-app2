@@ -10,6 +10,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const [myWeekRows,setMyWeekRows]=useState([])
   const [myWeekError,setMyWeekError]=useState('')
   const [myWeekLoading,setMyWeekLoading]=useState(false)
+  const [dailyReportDate,setDailyReportDate]=useState(()=>formatDateInput(new Date()))
   const sortedCommesse = useMemo(()=> sortCommesseByCantiere(db.commesse || []), [db.commesse])
   const activeCommesse = useMemo(()=> sortedCommesse.filter(c=>!c.archived_at), [sortedCommesse])
   const selectedCommessa = useMemo(
@@ -24,6 +25,12 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const mine = myWeekRows
   const dailyTotals = useMemo(()=> buildDailyTotals(mine), [mine])
   const weekTotal = dailyTotals.reduce((sum, row)=> sum + row.hours, 0)
+  const dailyReportGroups = useMemo(
+    ()=> buildRapportiniByCantiere(db.rapportini||[], dailyReportDate, db),
+    [db.rapportini, db.commesse, db.posizioni, db.profiles, dailyReportDate]
+  )
+  const dailyReportTotal = dailyReportGroups.reduce((sum, group)=>sum + group.hours, 0)
+  const dailyReportCount = dailyReportGroups.reduce((sum, group)=>sum + group.rows.length, 0)
 
   useEffect(()=>{
     setForm(f=>({ ...f, cantiere: selectedCommessa?.cantiere || '' }))
@@ -227,6 +234,42 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       </section>
       {isManager && (
         <section className="card section" style={{marginTop:16}}>
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+            <h3 style={{margin:0}}><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.Calendar/></span> Rapportini del giorno per cantiere</h3>
+            <input type="date" value={dailyReportDate} onChange={e=>setDailyReportDate(e.target.value)} style={{maxWidth:180}} />
+          </div>
+          <div className="muted" style={{marginBottom:12}}>
+            {dailyReportCount ? `${dailyReportCount} rapportini - ${formatHours(dailyReportTotal)} ore totali` : 'Nessun rapportino per il giorno selezionato'}
+          </div>
+          {dailyReportGroups.map(group=>(
+            <div key={group.cantiere} className="summary-tile" style={{marginBottom:12}}>
+              <div className="row" style={{justifyContent:'space-between', marginBottom:8}}>
+                <strong>{group.cantiere}</strong>
+                <span className="badge">{group.rows.length} rapportini - {formatHours(group.hours)} ore</span>
+              </div>
+              <div className="table-responsive">
+                <table className="table">
+                  <thead><tr><th>Dipendente</th><th>Commessa</th><th>Posizione</th><th>Ore</th><th>Descrizione</th><th>Stato</th></tr></thead>
+                  <tbody>
+                    {group.rows.map(r=>(
+                      <tr key={r.id}>
+                        <td>{profileName(db.profiles, r.user_id)}</td>
+                        <td>{commessaName(db.commesse, r.commessa_id)}</td>
+                        <td>{posizioneName(db.posizioni, r.posizione_id)}</td>
+                        <td><strong>{formatHours(r.ore)}</strong></td>
+                        <td>{r.descrizione || '-'}</td>
+                        <td><span className="badge">{r.stato || '-'}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+      {isManager && (
+        <section className="card section" style={{marginTop:16}}>
           <h3><span className="icon-chip chip-rapportini" style={{marginRight:6}}><Icon.FileText/></span> Ultimi Rapportini</h3>
           <ManagerRapportiniTable db={db} profiles={db.profiles||[]} refresh={refresh} />
         </section>
@@ -274,6 +317,44 @@ function buildDailyTotals(rows){
 
 function formatHours(value){
   return Number(value || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}
+
+function buildRapportiniByCantiere(rows, date, db){
+  const map = new Map()
+  for (const r of rows || []){
+    if (String(r.data || '').slice(0, 10) !== date) continue
+    const commessa = (db.commesse||[]).find(c=>String(c.id)===String(r.commessa_id))
+    const cantiere = r.cantiere || commessa?.cantiere || 'Senza cantiere'
+    const current = map.get(cantiere) || { cantiere, rows: [], hours: 0 }
+    current.rows.push(r)
+    current.hours += Number(r.ore || 0)
+    map.set(cantiere, current)
+  }
+  return [...map.values()]
+    .map(group=>({
+      ...group,
+      rows: group.rows.sort((a,b)=>{
+        const person = profileName(db.profiles, a.user_id).localeCompare(profileName(db.profiles, b.user_id), 'it', { numeric:true, sensitivity:'base' })
+        if (person !== 0) return person
+        return String(a.created_at || '').localeCompare(String(b.created_at || ''))
+      })
+    }))
+    .sort((a,b)=>a.cantiere.localeCompare(b.cantiere, 'it', { numeric:true, sensitivity:'base' }))
+}
+
+function profileName(profiles, userId){
+  const p = (profiles||[]).find(x=>String(x.id)===String(userId))
+  return p?.full_name || p?.email || '-'
+}
+
+function commessaName(commesse, commessaId){
+  const c = (commesse||[]).find(x=>String(x.id)===String(commessaId))
+  return c?.code || c?.descrizione || '-'
+}
+
+function posizioneName(posizioni, posizioneId){
+  const p = (posizioni||[]).find(x=>String(x.id)===String(posizioneId))
+  return p?.name || '-'
 }
 
 function ManagerRapportiniTable({ db, profiles, refresh }){
