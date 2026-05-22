@@ -11,6 +11,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const [myWeekError,setMyWeekError]=useState('')
   const [myWeekLoading,setMyWeekLoading]=useState(false)
   const [dailyReportDate,setDailyReportDate]=useState(()=>formatDateInput(new Date()))
+  const [extraLines,setExtraLines]=useState([])
   const sortedCommesse = useMemo(()=> sortCommesseByCantiere(db.commesse || []), [db.commesse])
   const activeCommesse = useMemo(()=> sortedCommesse.filter(c=>!c.archived_at), [sortedCommesse])
   const selectedCommessa = useMemo(
@@ -35,6 +36,29 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   useEffect(()=>{
     setForm(f=>({ ...f, cantiere: selectedCommessa?.cantiere || '' }))
   }, [selectedCommessa])
+
+  function emptyExtraLine(){
+    return { key:`${Date.now()}-${Math.random()}`, ore:'', commessa_id:'', posizione_id:'', descrizione:'' }
+  }
+  function updateExtraLine(key, patch){
+    setExtraLines(list=>list.map(line=>line.key===key ? { ...line, ...patch } : line))
+  }
+  function removeExtraLine(key){
+    setExtraLines(list=>list.filter(line=>line.key!==key))
+  }
+  function lineCommessa(line){
+    return (db.commesse||[]).find(x=>String(x.id)===String(line.commessa_id)) || null
+  }
+  function linePositions(commessaId){
+    return (db.posizioni||[]).filter(p=>String(p.commessa_id)===String(commessaId))
+  }
+  function isLineStarted(line){
+    return !!line.commessa_id || !!line.posizione_id || !!line.ore || !!String(line.descrizione||'').trim()
+  }
+  function buildReportLines(){
+    const first = { ore: form.ore, commessa_id: form.commessa_id, posizione_id: form.posizione_id, descrizione: form.descrizione }
+    return [first, ...extraLines.filter(isLineStarted)]
+  }
 
   async function loadMyWeekRapportini(){
     setMyWeekLoading(true)
@@ -81,21 +105,30 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   }
 
   async function onSubmit(){
-    // Validazione campi obbligatori
-    const missing = []
-    if (!form.data) missing.push('data')
-    if (!form.ore || Number(form.ore) <= 0) missing.push('ore')
-    if (!form.commessa_id) missing.push('commessa')
-    if (!form.posizione_id) missing.push('posizione')
-    if (!selectedCommessa?.cantiere || String(selectedCommessa.cantiere).trim()==='') missing.push('cantiere della commessa')
-    if (!form.descrizione || String(form.descrizione).trim()==='') missing.push('descrizione')
-    if (missing.length){
-      alert('Per inserire il rapportino devi compilare: ' + missing.join(', '))
+    const lines = buildReportLines()
+    if (!form.data){
+      alert('Per inserire il rapportino devi compilare: data')
       return
+    }
+    for (let i=0; i<lines.length; i++){
+      const line = lines[i]
+      const label = lines.length > 1 ? `riga ${i + 1}: ` : ''
+      const commessa = lineCommessa(line)
+      const missing = []
+      if (!line.ore || Number(line.ore) <= 0) missing.push('ore')
+      if (!line.commessa_id) missing.push('commessa')
+      if (!line.posizione_id) missing.push('posizione')
+      if (!commessa?.cantiere || String(commessa.cantiere).trim()==='') missing.push('cantiere della commessa')
+      if (!line.descrizione || String(line.descrizione).trim()==='') missing.push('descrizione')
+      if (missing.length){
+        alert('Per inserire il rapportino devi compilare ' + label + missing.join(', '))
+        return
+      }
     }
 
     const targetUserId = forUser || user.id
-    const newHours = Number(form.ore || 0)
+    const batchHours = lines.reduce((sum, line)=>sum + Number(line.ore || 0), 0)
+    const newHours = batchHours
     const { data: sameDayRows, error: checkError } = await supabase
       .from('rapportini')
       .select('id,ore,posizione_id')
@@ -104,6 +137,23 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
 
     if (checkError){
       alert('Non riesco a controllare i rapportini già inseriti: ' + checkError.message)
+      return
+    }
+
+    const batchPositions = new Set()
+    for (const line of lines){
+      const posId = String(line.posizione_id || '')
+      if (batchPositions.has(posId)){
+        const posName = (db.posizioni||[]).find(p=> String(p.id) === posId)?.name || 'selezionata'
+        alert(`Hai inserito due righe sulla stessa posizione "${posName}". Puoi fare più rapportini nello stesso giorno, ma non sulla stessa posizione.`)
+        return
+      }
+      batchPositions.add(posId)
+    }
+    const duplicated = lines.find(line=>(sameDayRows || []).some(r=> String(r.posizione_id || '') === String(line.posizione_id || '')))
+    if (duplicated){
+      const posName = (db.posizioni||[]).find(p=> String(p.id) === String(duplicated.posizione_id))?.name || 'selezionata'
+      alert(`Rapportino già presente: in data ${form.data} hai già inserito un rapportino per la posizione "${posName}". Puoi inserire più rapportini nello stesso giorno, ma non sulla stessa posizione.`)
       return
     }
 
@@ -136,14 +186,24 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
         photo_path = path
       }
     }
-    const { error } = await supabase.from('rapportini').insert({
-      user_id: targetUserId, data: form.data, ore: newHours,
-      commessa_id: form.commessa_id || null, posizione_id: form.posizione_id || null,
-      cantiere: selectedCommessa?.cantiere || null, descrizione: form.descrizione || null,
-      photo_url, photo_path
+    const rowsToInsert = lines.map(line=>{
+      const commessa = lineCommessa(line)
+      return {
+        user_id: targetUserId,
+        data: form.data,
+        ore: Number(line.ore || 0),
+        commessa_id: line.commessa_id || null,
+        posizione_id: line.posizione_id || null,
+        cantiere: commessa?.cantiere || null,
+        descrizione: line.descrizione || null,
+        photo_url,
+        photo_path
+      }
     })
+    const { error } = await supabase.from('rapportini').insert(rowsToInsert)
     if (error) alert(error.message); else {
       setForm({ data:new Date().toISOString().slice(0,10), ore:'', commessa_id:'', posizione_id:'', cantiere:'', descrizione:'', file:null })
+      setExtraLines([])
       await (refresh && refresh())
       await loadMyWeekRapportini()
     }
@@ -179,9 +239,43 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
           </div>
           <input placeholder="Descrizione attività" value={form.descrizione} onChange={e=>setForm({...form, descrizione:e.target.value})}/>
         </div>
+        {extraLines.map((line, index)=>{
+          const commessa = lineCommessa(line)
+          const positions = linePositions(line.commessa_id)
+          return (
+            <div key={line.key} className="summary-tile" style={{marginTop:10}}>
+              <div className="row" style={{justifyContent:'space-between', marginBottom:8}}>
+                <strong>Altro rapportino {index + 2}</strong>
+                <button className="btn secondary" onClick={()=>removeExtraLine(line.key)}>Rimuovi</button>
+              </div>
+              <div className="grid3">
+                <input type="number" min="0" step="0.5" placeholder="Ore" value={line.ore} onChange={e=>updateExtraLine(line.key, { ore:e.target.value })}/>
+                <select value={line.commessa_id} onChange={e=>updateExtraLine(line.key, { commessa_id:e.target.value, posizione_id:'' })}>
+                  <option value="">- Commessa -</option>
+                  {activeCommesse.map(c=>(<option key={c.id} value={c.id}>{c.code} - {c.cantiere||'-'}</option>))}
+                </select>
+                <select value={line.posizione_id} onChange={e=>updateExtraLine(line.key, { posizione_id:e.target.value })} disabled={!line.commessa_id}>
+                  <option value="">- Posizione -</option>
+                  {positions.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}
+                </select>
+              </div>
+              <div className="grid2" style={{marginTop:8}}>
+                <div className="input" style={{display:'flex',alignItems:'center',minHeight:42}}>
+                  {commessa?.cantiere ? `Cantiere: ${commessa.cantiere}` : 'Cantiere automatico dalla commessa'}
+                </div>
+                <input placeholder="Descrizione attività" value={line.descrizione} onChange={e=>updateExtraLine(line.key, { descrizione:e.target.value })}/>
+              </div>
+            </div>
+          )
+        })}
+        <div style={{marginTop:8}}>
+          <button className="btn secondary" onClick={()=>setExtraLines(list=>[...list, emptyExtraLine()])}>
+            <Icon.Plus style={{marginRight:6}}/> Aggiungi altro rapportino nello stesso giorno
+          </button>
+        </div>
         <div className="grid2" style={{marginTop:8}}>
           <input type="file" accept="image/*" onChange={handleFile}/>
-          <button className="btn" onClick={onSubmit}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Inserisci</button>
+          <button className="btn" onClick={onSubmit}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Inserisci {buildReportLines().length > 1 ? `${buildReportLines().length} rapportini` : ''}</button>
         </div>
       </section>
 
