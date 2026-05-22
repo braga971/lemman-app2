@@ -5,11 +5,17 @@ import * as Icon from './Icons.jsx'
 export default function Navbar({ tabs, active, onChange, onLogout, isManager, onSearch, onOpenChangePassword, onRefresh, refreshing=false }){
   const [menuOpen,setMenuOpen] = useState(false)
   const menuRef = useRef(null)
+  const drawerRef = useRef(null)
   const navRef = useRef(null)
   const [isMobile,setIsMobile] = useState(()=> (typeof window!=='undefined' ? window.innerWidth <= 768 : false))
   const [theme,setTheme] = useState(()=> (localStorage.getItem('theme')||'').toLowerCase()==='dark' ? 'dark' : 'light')
   useEffect(()=>{
-    function onDoc(e){ if(menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    function onDoc(e){
+      const target = e.target
+      const inMenu = menuRef.current && menuRef.current.contains(target)
+      const inDrawer = drawerRef.current && drawerRef.current.contains(target)
+      if(!inMenu && !inDrawer) setMenuOpen(false)
+    }
     if(menuOpen){ document.addEventListener('mousedown', onDoc) }
     return ()=> document.removeEventListener('mousedown', onDoc)
   }, [menuOpen])
@@ -80,7 +86,7 @@ export default function Navbar({ tabs, active, onChange, onLogout, isManager, on
               createPortal(
                 <>
                   <div className="drawer-overlay" onClick={()=>setMenuOpen(false)}></div>
-                  <div className="drawer-panel open" role="menu">
+                  <div className="drawer-panel open" role="menu" ref={drawerRef}>
                     <div style={{fontWeight:800, padding:'10px 12px'}}>Menu</div>
                     {tabs.map(t=>{
                       if (t.manager && !isManager) return null

@@ -68,6 +68,7 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const cantiereRef = useRef(cantiere)
   useEffect(()=>{ cantiereRef.current = cantiere }, [cantiere])
   const autoTimersRef = useRef(new Map())
+  const savingRowsRef = useRef(new Set())
   const editingRef = useRef(false)
   function displayShift(s){
     try{
@@ -155,6 +156,22 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
     timers.set(key, t)
   }catch(_){ /* ignore */ }
 }
+  async function findExistingTask(payload){
+    try{
+      const { data: existing } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('user_id', payload.user_id)
+        .eq('data', payload.data)
+        .eq('cantiere', payload.cantiere)
+        .eq('title', payload.title)
+        .limit(1)
+        .maybeSingle()
+      return existing?.id || null
+    }catch(_){
+      return null
+    }
+  }
   function addRow(shift){ setRowsByShift(v=> ({ ...v, [shift]: [...v[shift], { user_id:'', title:'', file:null, task_id:null }] })) }
   function delRow(shift, i){
     const row = rowsByShift?.[shift]?.[i]
@@ -175,6 +192,11 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         .eq('data', data)
         .eq('cantiere', cName)
         .order('created_at', { ascending:true })
+      const { data: dayTasks } = await supabase
+        .from('tasks')
+        .select('id,user_id,cantiere')
+        .eq('data', data)
+      const usersAlreadyPlannedToday = new Set((dayTasks||[]).map(t=>t.user_id).filter(Boolean))
       const base = {}; for (const s of SHIFTS) base[s] = []
       for (const t of (tasks||[])){
         const parts = String(t.title||'').split(' - ')
@@ -220,8 +242,8 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
           const keys = SCHEDULE_KEYS[label] || []
           const assigned = Array.from(new Set(keys.flatMap(k => (payload?.[k]?.users||[]).map(toUid).filter(isUuid))))
           if (!assigned.length) continue
-          const already = new Set(base[label].map(r=>r.user_id).filter(Boolean))
-          const missing = assigned.filter(uid=> !already.has(uid))
+          const already = new Set(Object.values(base).flatMap(rows=>rows.map(r=>r.user_id)).filter(Boolean))
+          const missing = assigned.filter(uid=> !already.has(uid) && !usersAlreadyPlannedToday.has(uid))
           for (const row of base[label]){ if (!row.user_id && missing.length){ row.user_id = missing.shift() } }
           while (missing.length){ base[label].push({ user_id: missing.shift(), title:'', file:null, task_id:null }) }
         }
@@ -237,6 +259,9 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
   })() }, [data, cantiere, cantieri])
 
   async function saveRow(shift, i, rOverride=null){
+    const saveKey = `${shift}:${i}`
+    if (savingRowsRef.current.has(saveKey)) return
+    savingRowsRef.current.add(saveKey)
     try{
       const r = rOverride || rowsByShift[shift][i]
       const cName = (cantieri.find(c=> String(c.id)===String(cantiere))||{}).name || null
@@ -265,17 +290,27 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         if (error) return alert(error.message)
         setRow(shift, i, { file:null })
       } else {
-        const ins = await supabase.from('tasks').insert(payload).select('id').single()
-        if (ins.error) return alert(ins.error.message)
-        setRow(shift, i, { task_id: ins.data.id, file:null })
+        const existingId = await findExistingTask(payload)
+        if (existingId){
+          const { error } = await supabase.from('tasks').update(payload).eq('id', existingId)
+          if (error) return alert(error.message)
+          setRow(shift, i, { task_id: existingId, file:null })
+        } else {
+          const ins = await supabase.from('tasks').insert(payload).select('id').single()
+          if (ins.error) return alert(ins.error.message)
+          setRow(shift, i, { task_id: ins.data.id, file:null })
+        }
       }
       if (!editingRef.current) onDone && onDone()
     }catch(e){ alert(String(e?.message||e)) }
+    finally{ savingRowsRef.current.delete(saveKey) }
   }
 
   async function assegna(){
     setSaving(true)
     try{
+      for (const timer of autoTimersRef.current.values()) clearTimeout(timer)
+      autoTimersRef.current.clear()
       const cName = (cantieri.find(c=> String(c.id)===String(cantiere))||{}).name || null
       if (!cName){ alert('Seleziona un cantiere'); setSaving(false); return }
       const next = { ...rowsByShift }
@@ -303,8 +338,14 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
           if (r.task_id){
             await supabase.from('tasks').update(payload).eq('id', r.task_id)
           } else {
-            const ins = await supabase.from('tasks').insert(payload).select('id').single()
-            if (!ins.error && ins.data?.id){ next[shift][i] = { ...r, task_id: ins.data.id, file:null } }
+            const existingId = await findExistingTask(payload)
+            if (existingId){
+              await supabase.from('tasks').update(payload).eq('id', existingId)
+              next[shift][i] = { ...r, task_id: existingId, file:null }
+            } else {
+              const ins = await supabase.from('tasks').insert(payload).select('id').single()
+              if (!ins.error && ins.data?.id){ next[shift][i] = { ...r, task_id: ins.data.id, file:null } }
+            }
           }
         }
       }
