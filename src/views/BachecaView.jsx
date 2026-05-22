@@ -14,6 +14,11 @@ export default function BachecaView({ data, refresh, isManager=false }){
   }
   async function del(id){ await supabase.from('bacheca').delete().eq('id', id); refresh() }
   function startEdit(r){ setEditingId(r.id); setEditTitle(r.title||''); setEditMsg(r.message||'') }
+  function growTextarea(e){
+    const el = e.currentTarget
+    el.style.height = 'auto'
+    el.style.height = `${Math.max(150, el.scrollHeight)}px`
+  }
   async function saveEdit(){
     await supabase.from('bacheca').update({ title: editTitle, message: editMsg }).eq('id', editingId)
     setEditingId(null); refresh()
@@ -23,10 +28,10 @@ export default function BachecaView({ data, refresh, isManager=false }){
     <div className="grid">
       {isManager && (
         <div className="card">
-          <div className="row">
+          <div style={{display:'grid', gap:10}}>
             <input className="input" placeholder="Titolo" value={title} onChange={e=>setTitle(e.target.value)} />
-            <input className="input" placeholder="Messaggio" style={{minWidth:320}} value={msg} onChange={e=>setMsg(e.target.value)} />
-            <button className="btn" onClick={post} disabled={!msg}>Pubblica</button>
+            <textarea className="input" placeholder="Messaggio" rows={6} style={{width:'100%', minHeight:150, resize:'vertical', lineHeight:1.45}} value={msg} onInput={growTextarea} onChange={e=>setMsg(e.target.value)} />
+            <div><button className="btn" onClick={post} disabled={!msg}>Pubblica</button></div>
           </div>
         </div>
       )}
@@ -35,9 +40,9 @@ export default function BachecaView({ data, refresh, isManager=false }){
           {(data.bacheca||[]).map(b=>(
             <li key={b.id} className="row" style={{justifyContent:'space-between', borderBottom:'1px solid var(--border)', padding:'6px 0'}}>
               {editingId===b.id ? (
-                <div className="row" style={{flex:1}}>
+                <div style={{display:'grid', gap:8, flex:1}}>
                   <input className="input" placeholder="Titolo" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
-                  <input className="input" placeholder="Messaggio" value={editMsg} onChange={e=>setEditMsg(e.target.value)} style={{minWidth:300}}/>
+                  <textarea className="input" placeholder="Messaggio" value={editMsg} rows={6} onInput={growTextarea} onChange={e=>setEditMsg(e.target.value)} style={{width:'100%', minHeight:150, resize:'vertical', lineHeight:1.45}}/>
                 </div>
               ) : (
                 <div style={{display:'grid'}}>

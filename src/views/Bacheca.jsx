@@ -11,6 +11,11 @@ export default function Bacheca({ db, isManager, refresh }){
   async function post(){ await supabase.from('bacheca').insert({ title, message: msg }); setMsg(''); setTitle(''); refresh() }
   async function del(id){ await supabase.from('bacheca').delete().eq('id', id); refresh() }
   function startEdit(row){ setEditingId(row.id); setEditTitle(row.title||''); setEditMsg(row.message||'') }
+  function growTextarea(e){
+    const el = e.currentTarget
+    el.style.height = 'auto'
+    el.style.height = `${Math.max(150, el.scrollHeight)}px`
+  }
   async function saveEdit(){
     await supabase.from('bacheca').update({ title: editTitle, message: editMsg }).eq('id', editingId)
     setEditingId(null); setEditTitle(''); setEditMsg(''); refresh()
@@ -20,19 +25,35 @@ export default function Bacheca({ db, isManager, refresh }){
       <section className="card section">
         <h3><span className="icon-chip chip-bacheca" style={{marginRight:6}}><Icon.Megaphone/></span> Bacheca</h3>
         {isManager && (
-          <div className="row" style={{marginBottom:8}}>
+          <div style={{display:'grid', gap:10, marginBottom:12}}>
             <input placeholder="Titolo" value={title} onChange={e=>setTitle(e.target.value)} />
-            <input placeholder="Messaggio" value={msg} onChange={e=>setMsg(e.target.value)} style={{minWidth:320}}/>
-            <button className="btn" onClick={post} disabled={!msg}>Pubblica</button>
+            <textarea
+              placeholder="Messaggio"
+              value={msg}
+              rows={6}
+              onInput={growTextarea}
+              onChange={e=>setMsg(e.target.value)}
+              style={{width:'100%', minHeight:150, resize:'vertical', lineHeight:1.45}}
+            />
+            <div>
+              <button className="btn" onClick={post} disabled={!msg}>Pubblica</button>
+            </div>
           </div>
         )}
         <ul style={{margin:0,paddingLeft:16}}>
           {(db.bacheca||[]).map(b=>(
             <li key={b.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:'1px solid #eee'}}>
               {editingId===b.id ? (
-                <span style={{display:'flex', gap:8, flex:1, alignItems:'center'}}>
+                <span style={{display:'grid', gap:8, flex:1}}>
                   <input placeholder="Titolo" value={editTitle} onChange={e=>setEditTitle(e.target.value)} />
-                  <input placeholder="Messaggio" value={editMsg} onChange={e=>setEditMsg(e.target.value)} style={{minWidth:320}} />
+                  <textarea
+                    placeholder="Messaggio"
+                    value={editMsg}
+                    rows={6}
+                    onInput={growTextarea}
+                    onChange={e=>setEditMsg(e.target.value)}
+                    style={{width:'100%', minHeight:150, resize:'vertical', lineHeight:1.45}}
+                  />
                 </span>
               ) : (
                 <span><b>{b.title||'•'}</b> {b.message} <span className="subtitle">({new Date(b.created_at).toLocaleString()})</span></span>
