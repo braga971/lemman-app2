@@ -26,6 +26,20 @@ function sortCommesseByCantiere(commesse){
   })
 }
 
+function profileLabel(profile){
+  return profile?.full_name || profile?.email || profile?.id || ''
+}
+
+function normalizeText(value){
+  return String(value || '').trim().toLowerCase()
+}
+
+function isAssignableProfile(profile){
+  const role = normalizeText(profile?.role || 'user')
+  const email = normalizeText(profile?.email)
+  return role !== 'archived' && role !== 'mensa' && email !== 'mensa@lemman.it'
+}
+
 export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const [data, setData] = useState(new Date().toISOString().slice(0,10))
   const [cantieri, setCantieri] = useState([])
@@ -40,6 +54,12 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   })
   const [saving, setSaving] = useState(false)
   const [taskPhotos, setTaskPhotos] = useState({})
+  const assignableProfiles = useMemo(
+    ()=> (profiles||[])
+      .filter(isAssignableProfile)
+      .sort((a,b)=>profileLabel(a).localeCompare(profileLabel(b), 'it', { numeric:true, sensitivity:'base' })),
+    [profiles]
+  )
   // Refs per autosave con stato aggiornato
   const rowsRef = useRef(rowsByShift)
   useEffect(()=>{ rowsRef.current = rowsByShift }, [rowsByShift])
@@ -56,6 +76,44 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
         .replace(/^2.*TURNO$/,'2\u00B0 TURNO')
         .replace(/^3.*TURNO$/,'3\u00B0 TURNO')
     }catch(_){ return s }
+  }
+  function findProfileByInput(text){
+    const value = normalizeText(text)
+    if (!value) return null
+    return assignableProfiles.find(p=> normalizeText(profileLabel(p)) === value || normalizeText(p.email) === value) || null
+  }
+  function employeeInputValue(row){
+    if (row?.user_search !== undefined) return row.user_search
+    const p = assignableProfiles.find(x=>String(x.id)===String(row?.user_id||''))
+    return p ? profileLabel(p) : ''
+  }
+  function updateEmployeeFromInput(shift, i, value){
+    const p = findProfileByInput(value)
+    const patch = { user_search: value, user_id: p?.id || '' }
+    const next = { ...(rowsByShift[shift][i]||{}), ...patch }
+    setRow(shift, i, patch)
+    scheduleAutoSave(shift, i, next)
+  }
+  function completeEmployeeOnBlur(shift, i, value){
+    const exact = findProfileByInput(value)
+    if (exact){
+      const label = profileLabel(exact)
+      const patch = { user_search: label, user_id: exact.id }
+      const next = { ...(rowsByShift[shift][i]||{}), ...patch }
+      setRow(shift, i, patch)
+      scheduleAutoSave(shift, i, next)
+      return
+    }
+    const valueNorm = normalizeText(value)
+    if (!valueNorm) return
+    const matches = assignableProfiles.filter(p=>normalizeText(profileLabel(p)).includes(valueNorm) || normalizeText(p.email).includes(valueNorm))
+    if (matches.length === 1){
+      const label = profileLabel(matches[0])
+      const patch = { user_search: label, user_id: matches[0].id }
+      const next = { ...(rowsByShift[shift][i]||{}), ...patch }
+      setRow(shift, i, patch)
+      scheduleAutoSave(shift, i, next)
+    }
   }
 
   useEffect(()=>{ (async ()=>{
@@ -279,6 +337,9 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         </div>
       )}
       <div className="card print-activities" style={{marginTop:8}}>
+        <datalist id="dipendenti-attivita-list">
+          {assignableProfiles.map(p=> <option key={p.id} value={profileLabel(p)} />)}
+        </datalist>
         {cantiereName && (<div style={{textAlign:'center', fontWeight:800}}>{String(cantiereName).toUpperCase()}</div>)}
         <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attività del {data}</div>
         {SHIFTS.map(shift => (
@@ -290,10 +351,14 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
                 {(rowsByShift[shift]||[]) .map((r,i)=>(
                   <tr key={i} data-blank={!r.user_id && !r.title ? '1':'0'}>
                     <td>
-                      <select className="select" value={r.user_id} onChange={e=>{ const next = { ...(rowsByShift[shift][i]||{}), user_id:e.target.value }; setRow(shift,i,{ user_id:e.target.value }); scheduleAutoSave(shift,i,next) }}>
-                        <option value="">-</option>
-                        {profiles.map(p=> <option key={p.id} value={p.id}>{p.full_name||p.email}</option>)}
-                      </select>
+                      <input
+                        className="input"
+                        list="dipendenti-attivita-list"
+                        placeholder="Scrivi il nome"
+                        value={employeeInputValue(r)}
+                        onChange={e=>updateEmployeeFromInput(shift, i, e.target.value)}
+                        onBlur={e=>completeEmployeeOnBlur(shift, i, e.target.value)}
+                      />
                     </td>
                     <td>
                       <textarea className="input" rows={2} value={r.title} onFocus={()=>{ editingRef.current = true }} onBlur={()=>{ editingRef.current = false }} onChange={e=>{ const next = { ...(rowsByShift[shift][i]||{}), title:e.target.value }; setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i,next) }} placeholder="Descrizione Attività"></textarea>
