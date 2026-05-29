@@ -70,6 +70,12 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   const autoTimersRef = useRef(new Map())
   const savingRowsRef = useRef(new Set())
   const editingRef = useRef(false)
+  useEffect(()=>{
+    document.querySelectorAll('.activity-textarea').forEach(el=>{
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    })
+  }, [rowsByShift])
   function displayShift(s){
     try{
       return String(s)
@@ -93,7 +99,7 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
     const patch = { user_search: value, user_id: p?.id || '' }
     const next = { ...(rowsByShift[shift][i]||{}), ...patch }
     setRow(shift, i, patch)
-    scheduleAutoSave(shift, i, next)
+    if (p && String(next.title||'').trim()) scheduleAutoSave(shift, i, next)
   }
   function completeEmployeeOnBlur(shift, i, value){
     const exact = findProfileByInput(value)
@@ -160,11 +166,12 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
     try{
       const { data: existing } = await supabase
         .from('tasks')
-        .select('id')
+        .select('id,created_at')
         .eq('user_id', payload.user_id)
         .eq('data', payload.data)
         .eq('cantiere', payload.cantiere)
-        .eq('title', payload.title)
+        .neq('id', payload.id || '00000000-0000-0000-0000-000000000000')
+        .order('created_at', { ascending:false })
         .limit(1)
         .maybeSingle()
       return existing?.id || null
@@ -204,7 +211,8 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         const rest = parts.slice(1).join(' - ')
         const normalized = displayShift(maybeShift)
         const shift = SHIFTS.find(s => displayShift(s) === normalized) || SHIFTS[0]
-        base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
+        const sameUserAlreadyLoaded = Object.values(base).some(rows=>rows.some(row=>String(row.user_id||'')===String(t.user_id||'')))
+        if (!sameUserAlreadyLoaded) base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
       }
       // Prepara URL foto per i task esistenti
       try{
@@ -276,7 +284,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
           if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
         }catch(_){ /* ignore upload errors */ }
       }
-      const payload = { user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+      const payload = { id: r.task_id || undefined, user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
       if (photo_url){
         // Imposta scadenza a giorno successivo alle 00:00 locali della data attività
         try{
@@ -327,7 +335,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
               if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
             }catch(_){ /* ignore upload errors */ }
           }
-          const payload = { user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+          const payload = { id: r.task_id || undefined, user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
           if (photo_url){
             try{
               const expBase = new Date(`${data}T00:00:00`)
@@ -402,7 +410,23 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
                       />
                     </td>
                     <td>
-                      <textarea className="input" rows={2} value={r.title} onFocus={()=>{ editingRef.current = true }} onBlur={()=>{ editingRef.current = false }} onChange={e=>{ const next = { ...(rowsByShift[shift][i]||{}), title:e.target.value }; setRow(shift,i,{ title:e.target.value }); scheduleAutoSave(shift,i,next) }} placeholder="Descrizione Attività"></textarea>
+                      <textarea
+                        className="input activity-textarea"
+                        rows={2}
+                        value={r.title}
+                        onFocus={()=>{ editingRef.current = true }}
+                        onBlur={e=>{
+                          editingRef.current = false
+                          const next = { ...(rowsByShift[shift][i]||{}), title:e.target.value }
+                          if (next.user_id && String(next.title||'').trim()) scheduleAutoSave(shift,i,next)
+                        }}
+                        onChange={e=>{
+                          e.currentTarget.style.height = 'auto'
+                          e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`
+                          setRow(shift,i,{ title:e.target.value })
+                        }}
+                        placeholder="Descrizione Attività"
+                      ></textarea>
                     </td>
                     <td className="no-print m-hide">
                       <div style={{display:'flex',alignItems:'center',gap:8}}>

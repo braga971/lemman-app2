@@ -36,6 +36,7 @@ body{ margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-ser
 .alert.warn{ background:#fff7ed; border-color:#fed7aa; color:#9a3412 }
 input, select, textarea{ border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:14px }
 input:focus, select:focus, textarea:focus{ outline:2px solid rgba(59,130,246,0.35); box-shadow:0 0 0 3px rgba(59,130,246,0.15) }
+.activity-textarea{ min-height:44px; resize:vertical; overflow:hidden; line-height:1.35 }
 .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
 .badge{ font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#111 }
 .status{ border-radius:999px; padding:2px 8px; font-size:12px }
@@ -92,16 +93,30 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 @media print {
   .card { page-break-inside: avoid }
   .container > *:not(.print-activities) { display: none !important }
-  .print-activities { display:block !important; box-shadow:none; border:none }
+  .print-activities { display:block !important; box-shadow:none; border:none; margin:0 !important; padding:0 !important; font-size:12px }
   .print-riepilogo { display:none !important }
+  .print-activities h3 { display:none !important }
   .print-activities .no-print { display:none !important }
-  .print-activities .card { display:block !important; width:auto; box-shadow:none; border:none; margin:6px 12px; padding:8px }
+  .print-activities .card { display:block !important; width:auto; box-shadow:none; border:none; margin:2px 0 !important; padding:3px !important; break-inside:auto; page-break-inside:auto }
   .print-activities table { display:table !important }
   .print-activities tr[data-blank="1"] { display:none !important }
-  .print-activities { font-size:10px }
-  .print-activities .table th, .print-activities .table td { padding:3px; font-size:10px }
-  .print-activities .muted { font-size:11px }
-  @page { size: A4 portrait; margin: 8mm }
+  .print-activities .table th, .print-activities .table td { padding:3px 4px; font-size:12px; vertical-align:top }
+  .print-activities .table th:first-child, .print-activities .table td:first-child { width:32% !important; font-weight:700 }
+  .print-activities .muted { font-size:12px; padding:3px !important; margin-top:2px !important }
+  .print-activities [style*="margin-bottom:6px"] { margin-bottom:2px !important }
+  .print-activities textarea,
+  .print-activities input {
+    border:none !important;
+    padding:0 !important;
+    font-size:12px !important;
+    line-height:1.22 !important;
+    overflow:visible !important;
+    resize:none !important;
+    min-height:0 !important;
+    box-shadow:none !important;
+    background:transparent !important;
+  }
+  @page { size: A4 portrait; margin: 5mm }
 }
 
 :root[data-theme="dark"]{ --bg:#0f1115; --card:#151821; --border:#262a36; --text:#e5e7eb; --muted:#9ca3af; --pill:#e5e7eb; --pill-text:#111; --accent:#8b5cf6; --success:#10b981; --warn:#f59e0b }
