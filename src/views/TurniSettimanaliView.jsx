@@ -35,6 +35,8 @@ export default function TurniSettimanaliView({ isManager=false }){
   const [values,setValues]=useState({})
   const [profiles,setProfiles]=useState([])
   const [loading,setLoading]=useState(false)
+  const [printingAll,setPrintingAll]=useState(false)
+  const [printSchedules,setPrintSchedules]=useState([])
   const [assignedElsewhere,setAssignedElsewhere]=useState(new Set())
   const [weekValue,setWeekValue]=useState(()=>{ const now=new Date(); const monday=startOfWeekMonday(now); const jan4=new Date(now.getFullYear(),0,4); const firstMonday=startOfWeekMonday(jan4); const diffDays=Math.round((monday-firstMonday)/(1000*60*60*24)); const isoWeek=1+Math.floor(diffDays/7); return `${monday.getFullYear()}-W${String(isoWeek).padStart(2,'0')}` })
   // Evita che un refresh asincrono sovrascriva modifiche locali appena fatte
@@ -116,6 +118,16 @@ export default function TurniSettimanaliView({ isManager=false }){
 
   const isUuid = (s)=> typeof s==='string' && /^[0-9a-fA-F-]{36}$/.test(s)
   const userId = (u)=> typeof u==='string' ? u : (u?.id||'')
+  function normalizeSchedulePayload(raw, currentProfiles=profiles){
+    const allowed = new Set((currentProfiles||[]).filter(isShiftEmployee).map(p=>p.id))
+    const norm={}
+    for(const s of SLOTS){
+      const v=raw?.[s.key]
+      const arr=(v?.users||[]).filter(Boolean)
+      norm[s.key]={users: arr.filter(u=> allowed.size? allowed.has(typeof u==='string'? u : (u?.id||'')) : true)}
+    }
+    return norm
+  }
   function buildPayload(vals){
     const payload={}
     for(const s of SLOTS){
@@ -193,6 +205,85 @@ export default function TurniSettimanaliView({ isManager=false }){
     return displayName(p) || uid
   }
 
+  async function printAllCantieri(){
+    try{
+      setPrintingAll(true)
+      const { data: schedules, error } = await supabase
+        .from('shift_schedules')
+        .select('site,payload')
+        .eq('week_start', from)
+      if (error) throw error
+      const bySite = new Map((schedules||[]).map(row=>[row.site, row.payload||{}]))
+      const sites = (cantieri||[]).map(c=>c.name).filter(Boolean)
+      for (const row of (schedules||[])){
+        if (row.site && !sites.includes(row.site)) sites.push(row.site)
+      }
+      const orderedSites = sites.sort((a,b)=>String(a).localeCompare(String(b), 'it', { numeric:true, sensitivity:'base' }))
+      setPrintSchedules(orderedSites.map(site=>({
+        site,
+        values: normalizeSchedulePayload(bySite.get(site) || {})
+      })))
+      setTimeout(()=>window.print(), 80)
+    }catch(err){
+      alert('Errore durante la preparazione della stampa: ' + (err?.message||String(err)))
+    }finally{
+      setTimeout(()=>setPrintingAll(false), 600)
+    }
+  }
+
+  function TurniBlock({ site, vals, printPage=false }){
+    return (
+      <div className={"card section print-area" + (printPage ? " weekly-print-page" : "")} style={{marginTop:12}}>
+        {site && (<div style={{textAlign:'center', fontWeight:800, marginBottom:8}}>{String(site).toUpperCase()}</div>)}
+        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center'}}>TURNI SETTIMANA DAL {fmtDMY(from)} {weekdayITUpper(from)} AL {fmtDMY(to)} {weekdayITUpper(to)}</div>
+
+        <div className="grid" style={{gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
+          {SLOTS.slice(0,2).map(s => (
+            <div key={s.key} className="card" style={{padding:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
+              <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
+              <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
+                {(vals?.[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
+                  <span key={uid} className="badge" style={{fontSize:15}} draggable={!printPage && isManager} onDragStart={!printPage && isManager ? (e)=>onDragStartUser(e,uid) : undefined} title={userLabel(u)}>
+                    {userLabel(u)}
+                    {!printPage && isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
+                  </span>
+                )})}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid" style={{gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginTop:12}}>
+          {SLOTS.slice(2,5).map(s => (
+            <div key={s.key} className="card" style={{padding:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
+              <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
+              <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
+                {(vals?.[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
+                  <span key={uid} className="badge" style={{fontSize:15}} draggable={!printPage && isManager} onDragStart={!printPage && isManager ? (e)=>onDragStartUser(e,uid) : undefined} title={userLabel(u)}>
+                    {userLabel(u)}
+                    {!printPage && isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
+                  </span>
+                )})}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{padding:12, marginTop:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,'GIORNALIERO') : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
+          <div style={{fontWeight:700, marginBottom:8}}>GIORNALIERO</div>
+          <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
+            {(vals?.['GIORNALIERO']?.users||[]).map(u=>{ const uid=userId(u); return (
+              <span key={uid} className="badge" style={{fontSize:15}} draggable={!printPage && isManager} onDragStart={!printPage && isManager ? (e)=>onDragStartUser(e,uid) : undefined} title={userLabel(u)}>
+                {userLabel(u)}
+                {!printPage && isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
+              </span>
+            )})}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="page">
       <style>{`
@@ -202,7 +293,12 @@ export default function TurniSettimanaliView({ isManager=false }){
           .print-area { font-size: 12px }
           .print-area .badge { font-size: 15px; padding: 6px 10px }
           .print-area .card { break-inside: avoid; box-shadow: none; border: none }
+          .weekly-screen { display:none !important }
+          .weekly-print-all { display:block !important }
+          .weekly-print-page { page-break-after: always; break-after: page }
+          .weekly-print-page:last-child { page-break-after: auto; break-after: auto }
         }
+        .weekly-print-all { display:none }
       `}</style>
       <h2><Icon.Calendar style={{marginRight:6}}/> Turni settimanali {cantiereName ? (<span className="muted" style={{marginLeft:8, fontWeight:600}}>- {cantiereName}</span>) : null}</h2>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
@@ -246,7 +342,7 @@ export default function TurniSettimanaliView({ isManager=false }){
           </>
         )}
         {isManager && (
-          <div style={{marginLeft:'auto'}}><button className="btn" onClick={()=>window.print()}>Stampa</button></div>
+          <div style={{marginLeft:'auto'}}><button className="btn" onClick={printAllCantieri} disabled={printingAll}>{printingAll ? 'Preparo...' : 'Stampa'}</button></div>
         )}
       </div>
 
@@ -260,53 +356,13 @@ export default function TurniSettimanaliView({ isManager=false }){
         </div>
       )}
 
-      <div className="card section print-area" style={{marginTop:12}}>
-        {cantiereName && (<div style={{textAlign:'center', fontWeight:800, marginBottom:8}}>{String(cantiereName).toUpperCase()}</div>)}
-        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center'}}>TURNI SETTIMANA DAL {fmtDMY(from)} {weekdayITUpper(from)} AL {fmtDMY(to)} {weekdayITUpper(to)}</div>
-
-        <div className="grid" style={{gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
-          {SLOTS.slice(0,2).map(s => (
-            <div key={s.key} className="card" style={{padding:12}} onDrop={isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={isManager? onDragOver : undefined}>
-              <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
-              <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
-                {(values[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
-                  <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={userLabel(u)}>
-                    {userLabel(u)}
-                    {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
-                  </span>
-                )})}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid" style={{gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginTop:12}}>
-          {SLOTS.slice(2,5).map(s => (
-            <div key={s.key} className="card" style={{padding:12}} onDrop={isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={isManager? onDragOver : undefined}>
-              <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
-              <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
-                {(values[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
-                  <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={userLabel(u)}>
-                    {userLabel(u)}
-                    {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
-                  </span>
-                )})}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="card" style={{padding:12, marginTop:12}} onDrop={isManager? (e)=>onDropSlot(e,'GIORNALIERO') : undefined} onDragOver={isManager? onDragOver : undefined}>
-          <div style={{fontWeight:700, marginBottom:8}}>GIORNALIERO</div>
-          <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
-            {(values['GIORNALIERO']?.users||[]).map(u=>{ const uid=userId(u); return (
-              <span key={uid} className="badge" style={{fontSize:15}} draggable={isManager} onDragStart={(e)=>onDragStartUser(e,uid)} title={userLabel(u)}>
-                {userLabel(u)}
-                {isManager && (<button className="btn" style={{marginLeft:6}} onClick={()=>removeUser(uid)}>x</button>)}
-              </span>
-            )})}
-          </div>
-        </div>
+      <div className="weekly-screen">
+        <TurniBlock site={cantiereName} vals={values} />
+      </div>
+      <div className="weekly-print-all">
+        {printSchedules.map(item=>(
+          <TurniBlock key={item.site} site={item.site} vals={item.values} printPage />
+        ))}
       </div>
     </div>
   )
