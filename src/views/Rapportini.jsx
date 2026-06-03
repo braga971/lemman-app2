@@ -11,6 +11,8 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const [myWeekError,setMyWeekError]=useState('')
   const [myWeekLoading,setMyWeekLoading]=useState(false)
   const [dailyReportDate,setDailyReportDate]=useState(()=>formatDateInput(new Date()))
+  const [dailyEditId,setDailyEditId]=useState(null)
+  const [dailyDraft,setDailyDraft]=useState(null)
   const [extraLines,setExtraLines]=useState([])
   const sortedCommesse = useMemo(()=> sortCommesseByCantiere(db.commesse || []), [db.commesse])
   const activeCommesse = useMemo(()=> sortedCommesse.filter(c=>!c.archived_at), [sortedCommesse])
@@ -209,6 +211,44 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     }
   }
 
+  function startDailyEdit(row){
+    setDailyEditId(row.id)
+    setDailyDraft({ ...row })
+  }
+  function cancelDailyEdit(){
+    setDailyEditId(null)
+    setDailyDraft(null)
+  }
+  async function saveDailyEdit(row){
+    const draft = dailyDraft || {}
+    if (!draft.data || !draft.ore || Number(draft.ore) <= 0 || !draft.commessa_id || !draft.posizione_id){
+      alert('Compila data, ore, commessa e posizione.')
+      return
+    }
+    const commessa = (db.commesse||[]).find(c=>String(c.id)===String(draft.commessa_id))
+    const { error } = await supabase.from('rapportini').update({
+      data: draft.data,
+      ore: Number(draft.ore || 0),
+      descrizione: draft.descrizione || null,
+      commessa_id: draft.commessa_id || null,
+      posizione_id: draft.posizione_id || null,
+      cantiere: commessa?.cantiere || null,
+      stato: draft.stato || row.stato || null
+    }).eq('id', row.id)
+    if (error) return alert(error.message)
+    cancelDailyEdit()
+    refresh && refresh()
+    await loadMyWeekRapportini()
+  }
+  async function deleteDailyRapportino(row){
+    if (!confirm('Eliminare questo rapportino?')) return
+    const { error } = await supabase.from('rapportini').delete().eq('id', row.id)
+    if (error) return alert(error.message)
+    if (dailyEditId === row.id) cancelDailyEdit()
+    refresh && refresh()
+    await loadMyWeekRapportini()
+  }
+
   return (
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
@@ -343,18 +383,57 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
               </div>
               <div className="table-responsive">
                 <table className="table">
-                  <thead><tr><th>Dipendente</th><th>Commessa</th><th>Posizione</th><th>Ore</th><th>Descrizione</th><th>Stato</th></tr></thead>
+                  <thead><tr><th>Dipendente</th><th>Commessa</th><th>Posizione</th><th>Ore</th><th>Descrizione</th><th>Stato</th><th>Azioni</th></tr></thead>
                   <tbody>
-                    {group.rows.map(r=>(
-                      <tr key={r.id}>
-                        <td>{profileName(db.profiles, r.user_id)}</td>
-                        <td>{commessaName(db.commesse, r.commessa_id)}</td>
-                        <td>{posizioneName(db.posizioni, r.posizione_id)}</td>
-                        <td><strong>{formatHours(r.ore)}</strong></td>
-                        <td>{r.descrizione || '-'}</td>
-                        <td><span className="badge">{r.stato || '-'}</span></td>
-                      </tr>
-                    ))}
+                    {group.rows.map(r=>{
+                      const isEdit = dailyEditId === r.id
+                      const draftCommessaId = isEdit ? dailyDraft?.commessa_id : r.commessa_id
+                      const posOptions = (db.posizioni||[]).filter(p=>String(p.commessa_id)===String(draftCommessaId))
+                      return (
+                        <tr key={r.id}>
+                          <td>{profileName(db.profiles, r.user_id)}</td>
+                          <td>{isEdit ? (
+                            <select className="input" value={dailyDraft?.commessa_id||''} onChange={e=>setDailyDraft(v=>({...v, commessa_id:e.target.value, posizione_id:''}))}>
+                              <option value="">- Commessa -</option>
+                              {sortCommesseByCantiere(db.commesse||[]).map(c=>(<option key={c.id} value={String(c.id)}>{c.code} - {c.cantiere||'-'}</option>))}
+                            </select>
+                          ) : commessaName(db.commesse, r.commessa_id)}</td>
+                          <td>{isEdit ? (
+                            <select className="input" value={dailyDraft?.posizione_id||''} onChange={e=>setDailyDraft(v=>({...v, posizione_id:e.target.value}))} disabled={!dailyDraft?.commessa_id}>
+                              <option value="">- Posizione -</option>
+                              {posOptions.map(p=>(<option key={p.id} value={String(p.id)}>{p.name}</option>))}
+                            </select>
+                          ) : posizioneName(db.posizioni, r.posizione_id)}</td>
+                          <td>{isEdit ? (
+                            <input className="input" type="number" min="0" step="0.5" value={dailyDraft?.ore||''} onChange={e=>setDailyDraft(v=>({...v, ore:e.target.value}))} />
+                          ) : (<strong>{formatHours(r.ore)}</strong>)}</td>
+                          <td>{isEdit ? (
+                            <input className="input" value={dailyDraft?.descrizione||''} onChange={e=>setDailyDraft(v=>({...v, descrizione:e.target.value}))} />
+                          ) : (r.descrizione || '-')}</td>
+                          <td>{isEdit ? (
+                            <select className="input" value={dailyDraft?.stato||''} onChange={e=>setDailyDraft(v=>({...v, stato:e.target.value}))}>
+                              <option value="">-</option>
+                              <option value="approvato">approvato</option>
+                              <option value="rifiutato">rifiutato</option>
+                              <option value="in_attesa">in attesa</option>
+                            </select>
+                          ) : (<span className="badge">{r.stato || '-'}</span>)}</td>
+                          <td>
+                            {isEdit ? (
+                              <>
+                                <button className="btn" onClick={()=>saveDailyEdit(r)}>Salva</button>
+                                <button className="btn secondary" style={{marginLeft:6}} onClick={cancelDailyEdit}>Annulla</button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="btn" onClick={()=>startDailyEdit(r)}>Modifica</button>
+                                <button className="btn danger" style={{marginLeft:6}} onClick={()=>deleteDailyRapportino(r)}>Elimina</button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
