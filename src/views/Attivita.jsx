@@ -26,7 +26,20 @@ export default function Attivita({ user, db, refresh, isManager=false }){
     }catch(err){ console.error('viewAndAutoDelete error', err); alert('Impossibile aprire la foto') }
   }
 
-  const my = (db.tasks||[]).filter(t=>t.user_id===user.id).sort((a,b)=>a.data.localeCompare(b.data))
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  const recentStart = new Date(today)
+  recentStart.setDate(today.getDate() - 6)
+  recentStart.setHours(0, 0, 0, 0)
+  const recentStartText = formatDateInput(recentStart)
+  const recentEndText = formatDateInput(today)
+  const my = (db.tasks||[])
+    .filter(t=>t.user_id===user.id)
+    .filter(t=>{
+      const day = String(t.data || '').slice(0, 10)
+      return day >= recentStartText && day <= recentEndText
+    })
+    .sort((a,b)=>String(a.data||'').localeCompare(String(b.data||'')))
   const [signed, setSigned] = useState({})
   useEffect(()=>{
     (async()=>{
@@ -60,6 +73,7 @@ export default function Attivita({ user, db, refresh, isManager=false }){
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
         <h3><span className="icon-chip chip-attivita" style={{marginRight:6}}><Icon.ClipboardCheck/></span> Attività assegnate</h3>
+        <div className="muted" style={{marginBottom:8}}>Dal {recentStartText} al {recentEndText}</div>
         <table className="table">
           <thead><tr><th>Data</th><th>Titolo</th><th>Foto</th></tr></thead>
           <tbody>
@@ -72,6 +86,9 @@ export default function Attivita({ user, db, refresh, isManager=false }){
                 ) : '—'}</td>
               </tr>
             ))}
+            {!my.length && (
+              <tr><td colSpan="3" style={{textAlign:'center', opacity:0.7}}>Nessuna attivita recente</td></tr>
+            )}
           </tbody>
         </table>
       </section>
@@ -84,4 +101,11 @@ export default function Attivita({ user, db, refresh, isManager=false }){
       )}
     </div>
   )
+}
+
+function formatDateInput(date){
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }

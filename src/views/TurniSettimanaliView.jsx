@@ -234,14 +234,14 @@ export default function TurniSettimanaliView({ isManager=false }){
   function TurniBlock({ site, vals, printPage=false }){
     return (
       <div className={"card section print-area" + (printPage ? " weekly-print-page" : "")} style={{marginTop:12}}>
-        {site && (<div style={{textAlign:'center', fontWeight:800, marginBottom:8}}>{String(site).toUpperCase()}</div>)}
-        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center'}}>TURNI SETTIMANA DAL {fmtDMY(from)} {weekdayITUpper(from)} AL {fmtDMY(to)} {weekdayITUpper(to)}</div>
+        {site && (<div className="weekly-print-site" style={{textAlign:'center', fontWeight:800, marginBottom:8}}>{String(site).toUpperCase()}</div>)}
+        <div className="muted weekly-print-week" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center'}}>TURNI SETTIMANA DAL {fmtDMY(from)} {weekdayITUpper(from)} AL {fmtDMY(to)} {weekdayITUpper(to)}</div>
 
-        <div className="grid" style={{gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
+        <div className="grid weekly-print-grid weekly-print-grid-top" style={{gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
           {SLOTS.slice(0,2).map(s => (
-            <div key={s.key} className="card" style={{padding:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
-              <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
-              <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
+            <div key={s.key} className="card weekly-print-slot" style={{padding:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
+              <div className="weekly-print-slot-title" style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
+              <div className="weekly-print-people" style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
                 {(vals?.[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
                   <span key={uid} className="badge" style={{fontSize:15}} draggable={!printPage && isManager} onDragStart={!printPage && isManager ? (e)=>onDragStartUser(e,uid) : undefined} title={userLabel(u)}>
                     {userLabel(u)}
@@ -253,11 +253,11 @@ export default function TurniSettimanaliView({ isManager=false }){
           ))}
         </div>
 
-        <div className="grid" style={{gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginTop:12}}>
+        <div className="grid weekly-print-grid weekly-print-grid-middle" style={{gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginTop:12}}>
           {SLOTS.slice(2,5).map(s => (
-            <div key={s.key} className="card" style={{padding:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
-              <div style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
-              <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
+            <div key={s.key} className="card weekly-print-slot" style={{padding:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,s.key) : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
+              <div className="weekly-print-slot-title" style={{fontWeight:700, marginBottom:8}}>{s.label}</div>
+              <div className="weekly-print-people" style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
                 {(vals?.[s.key]?.users||[]).map(u=>{ const uid=userId(u); return (
                   <span key={uid} className="badge" style={{fontSize:15}} draggable={!printPage && isManager} onDragStart={!printPage && isManager ? (e)=>onDragStartUser(e,uid) : undefined} title={userLabel(u)}>
                     {userLabel(u)}
@@ -269,9 +269,9 @@ export default function TurniSettimanaliView({ isManager=false }){
           ))}
         </div>
 
-        <div className="card" style={{padding:12, marginTop:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,'GIORNALIERO') : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
-          <div style={{fontWeight:700, marginBottom:8}}>GIORNALIERO</div>
-          <div style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
+        <div className="card weekly-print-slot weekly-print-daily" style={{padding:12, marginTop:12}} onDrop={!printPage && isManager? (e)=>onDropSlot(e,'GIORNALIERO') : undefined} onDragOver={!printPage && isManager? onDragOver : undefined}>
+          <div className="weekly-print-slot-title" style={{fontWeight:700, marginBottom:8}}>GIORNALIERO</div>
+          <div className="weekly-print-people" style={{display:'flex', flexWrap:'wrap', gap:8, minHeight:34}}>
             {(vals?.['GIORNALIERO']?.users||[]).map(u=>{ const uid=userId(u); return (
               <span key={uid} className="badge" style={{fontSize:15}} draggable={!printPage && isManager} onDragStart={!printPage && isManager ? (e)=>onDragStartUser(e,uid) : undefined} title={userLabel(u)}>
                 {userLabel(u)}
@@ -290,17 +290,27 @@ export default function TurniSettimanaliView({ isManager=false }){
         /* Aumenta leggibilità in stampa */
         @media print {
           @page { size: A4 landscape; margin: 8mm }
-          .print-area { font-size: 12px }
-          .print-area .badge { font-size: 15px; padding: 6px 10px }
-          .print-area .card { break-inside: avoid; box-shadow: none; border: none }
+          .print-area { font-size: 18px }
+          .print-area .badge { font-size: 22px !important; line-height:1.05; padding: 8px 12px; font-weight:800 }
+          .print-area .card { break-inside: avoid; box-shadow: none; border: 1px solid #111 }
+          .weekly-page-title { display:none !important }
           .weekly-screen { display:none !important }
           .weekly-print-all { display:block !important }
-          .weekly-print-page { page-break-after: always; break-after: page }
+          .weekly-print-page { page-break-after: always; break-after: page; min-height: calc(210mm - 16mm); display:flex; flex-direction:column; gap:8px; margin:0 !important; padding:0 !important; box-shadow:none !important; border:none !important }
           .weekly-print-page:last-child { page-break-after: auto; break-after: auto }
+          .weekly-print-site { font-size: 34px !important; line-height:1; margin-bottom:6px !important }
+          .weekly-print-week { font-size: 22px !important; line-height:1.05; padding:8px !important }
+          .weekly-print-grid { display:grid !important; gap:10px !important; margin-top:6px !important }
+          .weekly-print-grid-top { flex:1 }
+          .weekly-print-grid-middle { flex:1.15 }
+          .weekly-print-slot { display:flex !important; flex-direction:column; padding:10px !important }
+          .weekly-print-daily { flex:1; margin-top:6px !important }
+          .weekly-print-slot-title { font-size:24px !important; line-height:1.05; text-align:center; margin-bottom:8px !important }
+          .weekly-print-people { gap:8px !important; align-content:flex-start; min-height:0 !important }
         }
         .weekly-print-all { display:none }
       `}</style>
-      <h2><Icon.Calendar style={{marginRight:6}}/> Turni settimanali {cantiereName ? (<span className="muted" style={{marginLeft:8, fontWeight:600}}>- {cantiereName}</span>) : null}</h2>
+      <h2 className="weekly-page-title"><Icon.Calendar style={{marginRight:6}}/> Turni settimanali {cantiereName ? (<span className="muted" style={{marginLeft:8, fontWeight:600}}>- {cantiereName}</span>) : null}</h2>
       <div className="row no-print" style={{gap:12, alignItems:'center'}}>
         <span>Settimana:</span>
         <button className={"btn" + (weekValue===currentWeekValue?' primary':'')} onClick={()=>{ setWeekValue(currentWeekValue); setOffset(0) }}>Questa</button>

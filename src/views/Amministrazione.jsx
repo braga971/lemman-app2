@@ -377,7 +377,6 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         </select>
         <div style={{marginLeft:'auto', display:'flex', gap:8}}>
           <button className="btn" onClick={()=>window.print()}>Stampa</button>
-          <button className="btn primary" onClick={assegna} disabled={saving}>Assegna tutte</button>
         </div>
       </div>
       {fallbackCantieri && (
@@ -389,11 +388,13 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         <datalist id="dipendenti-attivita-list">
           {assignableProfiles.map(p=> <option key={p.id} value={profileLabel(p)} />)}
         </datalist>
-        {cantiereName && (<div style={{textAlign:'center', fontWeight:800}}>{String(cantiereName).toUpperCase()}</div>)}
-        <div className="muted" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attività del {data}</div>
-        {SHIFTS.map(shift => (
-          <div key={shift} className="card" style={{marginTop:10}}>
-            <div style={{fontWeight:700, textAlign:'center', marginBottom:6}}>{displayShift(shift)}</div>
+        {cantiereName && (<div className="activity-site-title" style={{textAlign:'center', fontWeight:800}}>{String(cantiereName).toUpperCase()}</div>)}
+        <div className="muted activity-print-date" style={{fontWeight:700, background:'#fdeaa1', padding:6, textAlign:'center', marginTop:6}}>Attività del {data}</div>
+        {SHIFTS.map(shift => {
+          const hasFilledRows = (rowsByShift[shift]||[]).some(r=>r.user_id || String(r.title||'').trim())
+          return (
+          <div key={shift} className={`card ${hasFilledRows ? '' : 'print-empty-shift'}`} style={{marginTop:10}}>
+            <div className="activity-shift-title" style={{fontWeight:700, textAlign:'center', marginBottom:6}}>{displayShift(shift)}</div>
             <table className="table">
               <thead><tr><th style={{width:'35%'}}>Dipendente</th><th>Attività</th><th style={{width:120}} className="no-print m-hide">Foto</th><th className="no-print"></th></tr></thead>
               <tbody>
@@ -401,7 +402,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
                   <tr key={i} data-blank={!r.user_id && !r.title ? '1':'0'}>
                     <td>
                       <input
-                        className="input"
+                        className="input activity-employee-input"
                         list="dipendenti-attivita-list"
                         placeholder="Scrivi il nome"
                         value={employeeInputValue(r)}
@@ -445,7 +446,8 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
               <button className="btn" onClick={()=>addRow(shift)}>Aggiungi riga</button>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
