@@ -57,6 +57,17 @@ export default function UtentiView(){
         headers: token ? { Authorization: `Bearer ${token}` } : undefined
       })
       if (error) throw error
+      if (data?.user_id){
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: form.full_name?.trim() || null,
+            matricola: matricolaValue ? Number(matricolaValue) : null,
+            role: form.role || 'user',
+          })
+          .eq('id', data.user_id)
+        if (profileError) throw profileError
+      }
       setForm({ email:'', password:'', full_name:'', matricola:'', role:'user' })
       await load()
     } catch(e){
