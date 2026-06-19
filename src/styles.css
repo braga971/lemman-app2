@@ -93,16 +93,16 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
 @media print {
   .card { page-break-inside: avoid }
   .container > *:not(.print-activities) { display: none !important }
-  .print-activities { display:block !important; box-shadow:none; border:none; margin:0 !important; padding:0 !important; font-size:14px }
+  .print-activities { display:block !important; width:100% !important; max-width:100% !important; box-shadow:none; border:none; margin:0 !important; padding:0 !important; font-size:14px; overflow:visible !important }
   .print-riepilogo { display:none !important }
   .print-activities h3 { display:none !important }
   .print-activities .no-print { display:none !important }
   .print-activities .card { display:block !important; width:auto; box-shadow:none; border:none; margin:1px 0 !important; padding:2px !important; break-inside:auto; page-break-inside:auto }
   .print-activities .print-empty-shift { display:none !important }
-  .print-activities table { display:table !important }
+  .print-activities table { display:table !important; width:100% !important; max-width:100% !important; table-layout:fixed; overflow:visible !important }
   .print-activities tr[data-blank="1"] { display:none !important }
   .print-activities .table th, .print-activities .table td { padding:2px 3px; font-size:14px; line-height:1.08; vertical-align:top }
-  .print-activities .table th:first-child, .print-activities .table td:first-child { width:32% !important; font-weight:700 }
+  .print-activities .table th:first-child, .print-activities .table td:first-child { width:34% !important; padding-left:2mm !important; font-weight:700 }
   .print-activities .muted { font-size:14px; padding:3px !important; margin-top:2px !important }
   .print-activities .activity-site-title { font-size:22px !important; line-height:1.05 !important; margin-bottom:3px !important }
   .print-activities .activity-print-date { font-size:20px !important; line-height:1.05 !important; padding:5px !important; margin-top:2px !important }
@@ -120,9 +120,9 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
     box-shadow:none !important;
     background:transparent !important;
   }
-  .print-activities .activity-employee-input { font-size:15px !important; font-weight:800 !important }
+  .print-activities .activity-employee-input { display:block !important; width:100% !important; max-width:100% !important; min-width:0 !important; padding-left:1mm !important; font-size:15px !important; font-weight:800 !important }
   .print-activities .activity-textarea { font-size:16px !important; font-weight:800 !important; line-height:1.08 !important }
-  @page { size: A4 portrait; margin: 4mm }
+  @page { size: A4 portrait; margin: 8mm }
 }
 
 :root[data-theme="dark"]{ --bg:#0f1115; --card:#151821; --border:#262a36; --text:#e5e7eb; --muted:#9ca3af; --pill:#e5e7eb; --pill-text:#111; --accent:#8b5cf6; --success:#10b981; --warn:#f59e0b }
