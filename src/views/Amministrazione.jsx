@@ -409,6 +409,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
                         onChange={e=>updateEmployeeFromInput(shift, i, e.target.value)}
                         onBlur={e=>completeEmployeeOnBlur(shift, i, e.target.value)}
                       />
+                      <span className="activity-print-value activity-print-employee">{employeeInputValue(r)}</span>
                     </td>
                     <td>
                       <textarea
@@ -428,6 +429,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
                         }}
                         placeholder="Descrizione Attività"
                       ></textarea>
+                      <span className="activity-print-value activity-print-description">{r.title}</span>
                     </td>
                     <td className="no-print m-hide">
                       <div style={{display:'flex',alignItems:'center',gap:8}}>

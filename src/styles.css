@@ -37,6 +37,7 @@ body{ margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-ser
 input, select, textarea{ border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:14px }
 input:focus, select:focus, textarea:focus{ outline:2px solid rgba(59,130,246,0.35); box-shadow:0 0 0 3px rgba(59,130,246,0.15) }
 .activity-textarea{ min-height:44px; resize:vertical; overflow:hidden; line-height:1.35 }
+.activity-print-value{ display:none }
 .row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
 .badge{ font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#111 }
 .status{ border-radius:999px; padding:2px 8px; font-size:12px }
@@ -120,8 +121,13 @@ hr.sep{ border:0; border-top:1px solid var(--border); margin:10px 0 }
     box-shadow:none !important;
     background:transparent !important;
   }
-  .print-activities .activity-employee-input { display:block !important; width:100% !important; max-width:100% !important; min-width:0 !important; padding-left:1mm !important; font-size:15px !important; font-weight:800 !important }
+  .print-activities .activity-employee-input { width:100% !important; max-width:100% !important; min-width:0 !important; padding-left:1mm !important; font-size:15px !important; font-weight:800 !important }
   .print-activities .activity-textarea { font-size:16px !important; font-weight:800 !important; line-height:1.08 !important }
+  .print-activities .activity-employee-input,
+  .print-activities .activity-textarea { display:none !important }
+  .print-activities .activity-print-value { display:block !important; width:100%; max-width:100%; color:#000; white-space:pre-wrap; overflow-wrap:anywhere; word-break:normal }
+  .print-activities .activity-print-employee { padding-left:1mm; font-size:15px; font-weight:800; line-height:1.08 }
+  .print-activities .activity-print-description { font-size:16px; font-weight:800; line-height:1.08 }
   @page { size: A4 portrait; margin: 8mm }
 }
 
