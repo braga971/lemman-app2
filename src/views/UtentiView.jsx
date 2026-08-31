@@ -97,15 +97,9 @@ export default function UtentiView(){
     setErr('')
     try{
       setLoading(true)
-      const { data: sess } = await supabase.auth.getSession()
-      const token = sess?.session?.access_token
-      const { error } = await supabase.functions.invoke('delete-user', {
-        body: { user_id: row.id, email: row.email },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined
-      })
+      // Non cancellare l'utente auth: il profilo serve allo storico di attività, rapportini, turni ed Excel.
+      const { error } = await supabase.from('profiles').update({ role: 'archived' }).eq('id', row.id)
       if (error) throw error
-      // Non cancellare i rapportini: conserva il profilo marcandolo come archiviato
-      await supabase.from('profiles').update({ role: 'archived' }).eq('id', row.id)
       await load()
     } catch(e){
       setErr(String(e?.message || e))

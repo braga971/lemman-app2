@@ -91,7 +91,11 @@ export function AssegnaAttivitaPerCantiere({ profiles, onDone }){
   }
   function employeeInputValue(row){
     if (row?.user_search !== undefined) return row.user_search
-    const p = assignableProfiles.find(x=>String(x.id)===String(row?.user_id||''))
+    const p = (profiles||[]).find(x=>String(x.id)===String(row?.user_id||''))
+    return p ? profileLabel(p) : (row?.user_name_snapshot || '')
+  }
+  function employeeNameForSnapshot(userId){
+    const p = (profiles||[]).find(x=>String(x.id)===String(userId||''))
     return p ? profileLabel(p) : ''
   }
   function updateEmployeeFromInput(shift, i, value){
@@ -195,7 +199,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
       if (!cName || !data) return
       const { data: tasks } = await supabase
         .from('tasks')
-        .select('id,user_id,title,data,cantiere,created_at,photo_url,photo_path')
+        .select('id,user_id,title,data,cantiere,created_at,photo_url,photo_path,user_name_snapshot')
         .eq('data', data)
         .eq('cantiere', cName)
         .order('created_at', { ascending:true })
@@ -212,7 +216,7 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
         const normalized = displayShift(maybeShift)
         const shift = SHIFTS.find(s => displayShift(s) === normalized) || SHIFTS[0]
         const sameUserAlreadyLoaded = Object.values(base).some(rows=>rows.some(row=>String(row.user_id||'')===String(t.user_id||'')))
-        if (!sameUserAlreadyLoaded) base[shift].push({ user_id: t.user_id||'', title: rest||'', file:null, task_id: t.id })
+        if (!sameUserAlreadyLoaded) base[shift].push({ user_id: t.user_id||'', user_name_snapshot: t.user_name_snapshot || '', title: rest||'', file:null, task_id: t.id })
       }
       // Prepara URL foto per i task esistenti
       try{
@@ -284,7 +288,8 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
           if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
         }catch(_){ /* ignore upload errors */ }
       }
-      const payload = { id: r.task_id || undefined, user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+      const payloadUserId = (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || ''))
+      const payload = { id: r.task_id || undefined, user_id: payloadUserId, user_name_snapshot: employeeNameForSnapshot(payloadUserId), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
       if (photo_url){
         // Imposta scadenza a giorno successivo alle 00:00 locali della data attività
         try{
@@ -335,7 +340,8 @@ function scheduleAutoSave(shift, i, rowSnapshot=null){
               if (!up.error){ const { data:pub } = await supabase.storage.from('tasks-temp').getPublicUrl(name); photo_url=pub.publicUrl; photo_path=name }
             }catch(_){ /* ignore upload errors */ }
           }
-          const payload = { id: r.task_id || undefined, user_id: (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || '')), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
+          const payloadUserId = (typeof r.user_id==='string'? r.user_id : (r.user_id?.id || r.user_id?.user_id || ''))
+          const payload = { id: r.task_id || undefined, user_id: payloadUserId, user_name_snapshot: employeeNameForSnapshot(payloadUserId), data, title:`${displayShift(shift)} - ${String(r.title).trim()}`, stato:'todo', cantiere: cName }
           if (photo_url){
             try{
               const expBase = new Date(`${data}T00:00:00`)
@@ -462,9 +468,9 @@ export function RiepilogoAttivita({ db, date }){
     for (const r of rows){ const k = r.cantiere || '(Senza cantiere)'; (m[k]??=[]).push(r) }
     return Object.entries(m)
   }, [rows])
-  const nameOf = (uid)=>{
-    const p = (db.profiles||[]).find(x=>x.id===uid)
-    return p?.full_name || p?.email || uid
+  const nameOf = (row)=>{
+    const p = (db.profiles||[]).find(x=>x.id===row?.user_id)
+    return p?.full_name || p?.email || row?.user_name_snapshot || row?.user_id
   }
   return (
     <div>
@@ -477,7 +483,7 @@ export function RiepilogoAttivita({ db, date }){
             <tbody>
               {list.map(r=> (
                 <tr key={r.id}>
-                  <td>{nameOf(r.user_id)}</td>
+                  <td>{nameOf(r)}</td>
                   <td>{r.title}</td>
                 </tr>
               ))}

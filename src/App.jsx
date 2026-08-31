@@ -14,6 +14,7 @@ import Mensa from './views/Mensa.jsx'
 import Amministrazione from './views/Amministrazione.jsx'
 import UtentiView from './views/UtentiView.jsx'
 import TurniSettimanali from './views/TurniSettimanaliView.jsx'
+import Timbrature from './views/Timbrature.jsx'
 import ChangePasswordModal from './components/ChangePasswordModal.jsx'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
@@ -24,6 +25,7 @@ const TABS = [
   { key:'mensa', label:'Mensa', icon:<Icon.Utensils /> },
   { key:'bacheca', label:'Bacheca', icon:<Icon.Megaphone /> },
   { key:'turni_settimanali', label:'Turni Settimanali', icon:<Icon.Calendar /> },
+  { key:'timbrature', label:'Timbrature', manager:true, icon:<Icon.Calendar /> },
   { key:'admin', label:'Amministrazione', manager:true, icon:<Icon.Settings /> },
   { key:'utenti', label:'Utenti', manager:true, icon:<Icon.Users /> },
 ]
@@ -35,6 +37,7 @@ const routeFor = {
   mensa: '/mensa',
   bacheca: '/bacheca',
   turni_settimanali: '/turni',
+  timbrature: '/timbrature',
   admin: '/admin',
   utenti: '/utenti',
 }
@@ -182,6 +185,7 @@ export default function App(){
       .on('postgres_changes', { event:'*', schema:'public', table:'tasks' }, ()=> queryClient.invalidateQueries({ queryKey:['tasks'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'bacheca' }, ()=> queryClient.invalidateQueries({ queryKey:['bacheca'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'rapportini' }, ()=> queryClient.invalidateQueries({ queryKey:['rapportini'] }))
+      .on('postgres_changes', { event:'*', schema:'public', table:'rams_attendance_logs' }, ()=> queryClient.invalidateQueries({ queryKey:['rams_attendance'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'mensa_ordini' }, ()=> queryClient.invalidateQueries({ queryKey:['mensa_ordini'] }))
       .on('postgres_changes', { event:'*', schema:'public', table:'user_messages' }, ()=> queryClient.invalidateQueries({ queryKey:['user_messages'] }))
       .subscribe()
@@ -253,6 +257,7 @@ export default function App(){
         <Route path="/mensa" element={<Mensa user={user} db={db} refresh={refresh} isManager={isManager} isMensaUser={isMensaUser} />} />
         <Route path="/bacheca" element={<Bacheca db={db} isManager={isManager} refresh={refresh} />} />
         <Route path="/turni" element={<TurniSettimanali isManager={isManager} />} />
+        <Route path="/timbrature" element={isManager ? (<Timbrature />) : (<Navigate to="/" replace />)} />
         <Route path="/admin" element={isManager ? (<Amministrazione db={db} profiles={db.profiles} refresh={refresh} />) : (<Navigate to="/" replace />)} />
         <Route path="/utenti" element={isManager ? (<UtentiView />) : (<Navigate to="/" replace />)} />
         <Route path="/dashboard" element={<Navigate to="/" replace />} />

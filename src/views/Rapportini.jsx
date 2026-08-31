@@ -14,6 +14,9 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   const [dailyEditId,setDailyEditId]=useState(null)
   const [dailyDraft,setDailyDraft]=useState(null)
   const [extraLines,setExtraLines]=useState([])
+  const [ramsDay,setRamsDay]=useState(null)
+  const [ramsDayError,setRamsDayError]=useState('')
+  const [ramsDayLoading,setRamsDayLoading]=useState(false)
   const sortedCommesse = useMemo(()=> sortCommesseByCantiere(db.commesse || []), [db.commesse])
   const activeCommesse = useMemo(()=> sortedCommesse.filter(c=>!c.archived_at), [sortedCommesse])
   const selectedCommessa = useMemo(
@@ -34,6 +37,15 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   )
   const dailyReportTotal = dailyReportGroups.reduce((sum, group)=>sum + group.hours, 0)
   const dailyReportCount = dailyReportGroups.reduce((sum, group)=>sum + group.rows.length, 0)
+  const currentDayRows = useMemo(
+    ()=> (db.rapportini || []).filter(r=> String(r.user_id)===String(forUser || user.id) && String(r.data || '').slice(0, 10) === form.data),
+    [db.rapportini, forUser, user.id, form.data]
+  )
+  const currentDayInsertedHours = currentDayRows.reduce((sum, r)=>sum + Number(r.ore || 0), 0)
+  const currentDraftHours = buildReportLines().reduce((sum, line)=>sum + Number(line.ore || 0), 0)
+  const ramsWorkedHours = Number(ramsDay?.worked_hours || 0)
+  const ramsRemainingHours = Math.max(0, ramsWorkedHours - currentDayInsertedHours)
+  const ramsAfterDraftHours = Math.max(0, ramsRemainingHours - currentDraftHours)
 
   useEffect(()=>{
     setForm(f=>({ ...f, cantiere: selectedCommessa?.cantiere || '' }))
@@ -62,6 +74,35 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     return [first, ...extraLines.filter(isLineStarted)]
   }
 
+  async function loadRamsDay(){
+    if (!form.data || !forUser) {
+      setRamsDay(null)
+      return
+    }
+    setRamsDayLoading(true)
+    setRamsDayError('')
+    const { data, error } = await supabase
+      .from('rams_work_days')
+      .select('*')
+      .eq('profile_id', forUser)
+      .eq('work_date', form.data)
+      .maybeSingle()
+    if (error){
+      setRamsDay(null)
+      const msg = String(error.message || '')
+      setRamsDayError(msg.includes('relation') || msg.includes('does not exist') ? '' : msg)
+    } else {
+      setRamsDay(data || null)
+    }
+    setRamsDayLoading(false)
+  }
+
+  function applyRamsRemainingHours(){
+    const value = ramsRemainingHours || ramsWorkedHours
+    if (!value) return
+    setForm(f=>({ ...f, ore: String(Number(value.toFixed ? value.toFixed(2) : value)) }))
+  }
+
   async function loadMyWeekRapportini(){
     setMyWeekLoading(true)
     setMyWeekError('')
@@ -86,6 +127,10 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   useEffect(()=>{
     loadMyWeekRapportini()
   }, [user.id, weekStartText, weekEndText])
+
+  useEffect(()=>{
+    loadRamsDay()
+  }, [form.data, forUser])
 
   async function handleFile(e){
     const file = e.target.files?.[0] || null;
@@ -167,6 +212,10 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     }
 
     const dayHours = (sameDayRows || []).reduce((sum, r)=> sum + Number(r.ore || 0), 0)
+    if (ramsWorkedHours && dayHours + newHours > ramsWorkedHours + 0.01){
+      alert(`Ore superiori alle timbrature RAMS del ${form.data}: RAMS calcola ${formatHours(ramsWorkedHours)} ore, hai gia ${formatHours(dayHours)} ore inserite e con questo rapportino arriveresti a ${formatHours(dayHours + newHours)} ore.`)
+      return
+    }
     if (dayHours + newHours > 20){
       alert(`Ore giornaliere troppo alte per il ${form.data}: hai già ${formatHours(dayHours)} ore inserite. Con questo rapportino arriveresti a ${formatHours(dayHours + newHours)} ore. Il limite massimo è 20 ore.`)
       return
@@ -208,6 +257,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       setExtraLines([])
       await (refresh && refresh())
       await loadMyWeekRapportini()
+      await loadRamsDay()
     }
   }
 
@@ -223,6 +273,18 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     const draft = dailyDraft || {}
     if (!draft.data || !draft.ore || Number(draft.ore) <= 0 || !draft.commessa_id || !draft.posizione_id){
       alert('Compila data, ore, commessa e posizione.')
+      return
+    }
+    const duplicate = await findDuplicateRapportino({
+      userId: row.user_id,
+      date: draft.data,
+      posizioneId: draft.posizione_id,
+      excludeId: row.id,
+    })
+    if (duplicate.error) return alert('Non riesco a controllare i rapportini gia inseriti: ' + duplicate.error.message)
+    if (duplicate.row){
+      const posName = posizioneName(db.posizioni, draft.posizione_id)
+      alert(`Rapportino gia presente: questo dipendente ha gia un rapportino per la posizione "${posName}" in data ${draft.data}.`)
       return
     }
     const commessa = (db.commesse||[]).find(c=>String(c.id)===String(draft.commessa_id))
@@ -253,6 +315,28 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
         <h3><span className="icon-chip chip-report" style={{marginRight:6}}><Icon.FileText/></span> Nuovo rapportino</h3>
+        <div className="summary-tile" style={{marginBottom:12}}>
+          <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
+            <div>
+              <strong>Ore da timbrature RAMS</strong>
+              <div className="muted">
+                {ramsDayLoading ? 'Caricamento timbrature...' : ramsDay ? (
+                  <>
+                    Ingresso {formatTime(ramsDay.normalized_start_at)} - uscita {formatTime(ramsDay.normalized_end_at)}
+                    {ramsDay.status !== 'ok' ? ` - ${ramsDay.status}` : ''}
+                  </>
+                ) : 'Nessuna timbratura RAMS collegata per questa data'}
+              </div>
+              {ramsDayError && <div className="muted">{ramsDayError}</div>}
+            </div>
+            <div className="row">
+              <span className="badge">RAMS {formatHours(ramsWorkedHours)} h</span>
+              <span className="badge">Inserite {formatHours(currentDayInsertedHours)} h</span>
+              <span className="badge">Residue {formatHours(ramsAfterDraftHours)} h</span>
+              <button className="btn secondary" onClick={applyRamsRemainingHours} disabled={!ramsRemainingHours}>Usa ore residue</button>
+            </div>
+          </div>
+        </div>
         <div className="grid3">
           {isManager && (
             <select value={forUser} onChange={e=>setForUser(e.target.value)}>
@@ -492,6 +576,11 @@ function formatHours(value){
   return Number(value || 0).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
+function formatTime(value){
+  if (!value) return '-'
+  return new Date(value).toLocaleTimeString('it-IT', { hour:'2-digit', minute:'2-digit' })
+}
+
 function buildRapportiniByCantiere(rows, date, db){
   const map = new Map()
   for (const r of rows || []){
@@ -528,6 +617,21 @@ function commessaName(commesse, commessaId){
 function posizioneName(posizioni, posizioneId){
   const p = (posizioni||[]).find(x=>String(x.id)===String(posizioneId))
   return p?.name || '-'
+}
+
+async function findDuplicateRapportino({ userId, date, posizioneId, excludeId }){
+  let query = supabase
+    .from('rapportini')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('data', date)
+    .eq('posizione_id', posizioneId)
+    .limit(1)
+
+  if (excludeId) query = query.neq('id', excludeId)
+
+  const { data, error } = await query
+  return { row: (data || [])[0] || null, error }
 }
 
 function ManagerRapportiniTable({ db, profiles, refresh }){
@@ -573,6 +677,22 @@ function ManagerRapportiniTable({ db, profiles, refresh }){
   function cancelEditRap(){ setEditingRapId(null); setRapDraft(null) }
   async function saveEditRap(r){
     const row={...rapDraft}
+    if (!row.data || !row.ore || Number(row.ore) <= 0 || !row.commessa_id || !row.posizione_id){
+      alert('Compila data, ore, commessa e posizione.')
+      return
+    }
+    const duplicate = await findDuplicateRapportino({
+      userId: r.user_id,
+      date: row.data,
+      posizioneId: row.posizione_id,
+      excludeId: r.id,
+    })
+    if (duplicate.error) return alert('Non riesco a controllare i rapportini gia inseriti: ' + duplicate.error.message)
+    if (duplicate.row){
+      const posName = posizioneName(db.posizioni, row.posizione_id)
+      alert(`Rapportino gia presente: questo dipendente ha gia un rapportino per la posizione "${posName}" in data ${row.data}.`)
+      return
+    }
     const commessa = (db.commesse||[]).find(c=> String(c.id)===String(row.commessa_id))
     const { error } = await supabase.from('rapportini').update({
       data:row.data,
