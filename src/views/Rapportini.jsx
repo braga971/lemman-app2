@@ -129,8 +129,9 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
   }, [user.id, weekStartText, weekEndText])
 
   useEffect(()=>{
-    loadRamsDay()
-  }, [form.data, forUser])
+    if (isManager) loadRamsDay()
+    else setRamsDay(null)
+  }, [form.data, forUser, isManager])
 
   async function handleFile(e){
     const file = e.target.files?.[0] || null;
@@ -212,7 +213,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     }
 
     const dayHours = (sameDayRows || []).reduce((sum, r)=> sum + Number(r.ore || 0), 0)
-    if (ramsWorkedHours && dayHours + newHours > ramsWorkedHours + 0.01){
+    if (isManager && ramsWorkedHours && dayHours + newHours > ramsWorkedHours + 0.01){
       alert(`Ore superiori alle timbrature RAMS del ${form.data}: RAMS calcola ${formatHours(ramsWorkedHours)} ore, hai gia ${formatHours(dayHours)} ore inserite e con questo rapportino arriveresti a ${formatHours(dayHours + newHours)} ore.`)
       return
     }
@@ -257,7 +258,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
       setExtraLines([])
       await (refresh && refresh())
       await loadMyWeekRapportini()
-      await loadRamsDay()
+      if (isManager) await loadRamsDay()
     }
   }
 
@@ -315,7 +316,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
     <div className="container" style={{paddingTop:16}}>
       <section className="card section">
         <h3><span className="icon-chip chip-report" style={{marginRight:6}}><Icon.FileText/></span> Nuovo rapportino</h3>
-        <div className="summary-tile" style={{marginBottom:12}}>
+        {isManager && <div className="summary-tile" style={{marginBottom:12}}>
           <div className="row" style={{justifyContent:'space-between', alignItems:'center'}}>
             <div>
               <strong>Ore da timbrature RAMS</strong>
@@ -336,7 +337,7 @@ export default function Rapportini({ user, db, refresh, isManager=false }){
               <button className="btn secondary" onClick={applyRamsRemainingHours} disabled={!ramsRemainingHours}>Usa ore residue</button>
             </div>
           </div>
-        </div>
+        </div>}
         <div className="grid3">
           {isManager && (
             <select value={forUser} onChange={e=>setForUser(e.target.value)}>
